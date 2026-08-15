@@ -134,7 +134,7 @@ so a restart onto a different model can never inherit the previous model's numbe
 ## Python or Rust? Two builds
 
 This repo is the **Python build** — the zero-setup, read-the-whole-thing-in-one-file version. There
-is also a **Rust build, [fleet-tap](https://github.com/NHClimber87/fleet-tap)**, which is a
+is also a **Rust build, [fleet-tap](https://github.com/Forge-the-Kingdom/fleet-tap)**, which is a
 transparent traffic *tap* rather than just a metrics scraper. They render the same dashboard; they
 differ in how they get the numbers and what they cost to run.
 
@@ -145,7 +145,7 @@ differ in how they get the numbers and what they cost to run.
 - You don't want anything sitting in front of your serving ports — this only ever *reads* each
   server's `/metrics`, never proxies traffic.
 
-**Use the Rust build ([fleet-tap](https://github.com/NHClimber87/fleet-tap)) when:**
+**Use the Rust build ([fleet-tap](https://github.com/Forge-the-Kingdom/fleet-tap)) when:**
 - You want **accurate, client-measured throughput and latency.** It measures real tokens/sec, TTFT
   and inter-token latency from the actual request/response stream it taps. A scraper can only
   report what the engine chooses to publish: this build holds llama.cpp's idle-zero rate gauges
