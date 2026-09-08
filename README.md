@@ -33,7 +33,9 @@ chromium --headless --window-size=2880,1640 --virtual-time-budget=9000 \
 - **Primary worker** — decode & prefill tokens/sec, request counts, queue depth, context/KV fill.
   Works with llama.cpp (`/metrics` + `/props`) and vLLM (`/metrics` + `/v1/models`). The worker
   port is **auto-discovered** from listening sockets, so a bench or swap that moves the model to
-  another port still lands on the dashboard.
+  another port still lands on the dashboard. If the winner is a models-dir **router**, the
+  primary follows the loaded model to its own port (from the router's `/v1/models` list — the
+  router's `/metrics` needs a model name and its props are generic).
 - **Request latency** — mean TTFT, inter-token latency and queue wait over the last 30 seconds of
   completed requests. This one is **vLLM-only**, and the tile says so on llama.cpp rather than
   going blank: llama.cpp's exporter publishes eleven series and none of them is a latency

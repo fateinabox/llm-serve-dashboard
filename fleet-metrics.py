@@ -232,24 +232,74 @@ def resolve_worker_port():
     consulted only when socket discovery happened to find nothing, so an explicit
     `WORKER_PORT_CANDIDATES=9000` was silently ignored whenever any unrelated listener existed in
     the scan range — configuration that looks applied and isn't.
+
+    If the winner is a models-dir ROUTER (props role=router), the primary is handed over to the
+    loaded model's own port: the router's /metrics needs ?model= and its props are generic, so
+    scraping it reads as a healthy-but-empty worker. The model servers it spawns sit on
+    ephemeral ports outside the discovery range — the router's /v1/models list is the
+    authoritative map.
     """
     if _WORKER_PORTS_ENV:
         candidates = list(dict.fromkeys(WORKER_PORT_CANDIDATES))   # de-dup, order preserved
     else:
         seen = _listening_ports()
         candidates = [8001] + [p for p in (seen or WORKER_PORT_CANDIDATES) if p != 8001]
-    best = None  # (n_ctx, port)
+    best = None    # (n_ctx, port)
+    best_props = None
     for p in candidates:
         props = fetch_llama_props(p)
         if not (isinstance(props, dict) and "_error" not in props):
             props = fetch_vllm_props(p)
         if isinstance(props, dict) and "_error" not in props:
             if p == 8001:
-                return p
+                m = resolve_router_model_port(p) if props.get("role") == "router" else None
+                return m or p
             n_ctx = props.get("n_ctx", 0) or 0
             if best is None or n_ctx > best[0]:
                 best = (n_ctx, p)
-    return best[1] if best else 8001  # nothing up → report the default port as down
+                best_props = props
+    if best:
+        if best_props.get("role") == "router":
+            m = resolve_router_model_port(best[1])
+            if m:
+                return m
+        return best[1]
+    return 8001  # nothing up → report the default port as down
+
+
+def resolve_router_model_port(router_port):
+    """A models-dir router owns the model list: each LOADED entry's args carry the model
+    server's own --port (ephemeral, outside the discovery range). Return that port —
+    largest --ctx-size wins, the same heuristic resolve_worker_port uses to rank candidates.
+    None when nothing is loaded or the list can't be read — the caller keeps the router."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{router_port}/v1/models", headers={"User-Agent": "curl"})
+        resp = scrape_open(req, timeout=3)
+        data = json.loads(read_capped(resp))
+    except Exception:
+        return None
+    entries = data.get("data") if isinstance(data, dict) else None
+    best = None  # (ctx, port)
+    for m in (entries if isinstance(entries, list) else []):
+        if not isinstance(m, dict):
+            continue
+        status = m.get("status")
+        if not isinstance(status, dict) or status.get("value") != "loaded":
+            continue
+        args = status.get("args") if isinstance(status.get("args"), list) else []
+        port = ctx = None
+        i = 0
+        while i < len(args):
+            if args[i] == "--port" and i + 1 < len(args):
+                port = _to_int(args[i + 1]); i += 2; continue
+            if args[i] == "--ctx-size" and i + 1 < len(args):
+                ctx = _to_int(args[i + 1]); i += 2; continue
+            i += 1
+        if not port:
+            continue
+        if best is None or (ctx or 0) > best[0]:
+            best = (ctx or 0, port)
+    return best[1] if best else None
 
 # Secondary CPU-only llama-servers (optional). Each raw llama-server exposes the prometheus
 # /metrics, /props, /lora-adapters API on its own port; the dashboard shows one panel per entry.
@@ -713,6 +763,10 @@ def fetch_llama_props(port=8001):
         params = dgs.get("params")
         params = params if isinstance(params, dict) else {}
         return {
+            # A models-dir router answers /props with role=router; its /metrics needs
+            # ?model= and its props are generic — resolve_worker_port uses this to hand
+            # the primary over to the loaded model's own port.
+            "role": str(data.get("role", "") or ""),
             "alias": str(data.get("model_alias", "") or ""),
             "model_path": str(data.get("model_path", "") or ""),
             "n_ctx": _to_int(dgs.get("n_ctx", 0)),
