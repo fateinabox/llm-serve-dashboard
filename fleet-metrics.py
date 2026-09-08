@@ -238,6 +238,9 @@ def resolve_worker_port():
     scraping it reads as a healthy-but-empty worker. The model servers it spawns sit on
     ephemeral ports outside the discovery range — the router's /v1/models list is the
     authoritative map.
+
+    Returns (worker_port, router_port) — router_port is None when no router was in the mix,
+    so the caller can still fetch the model roster (sidebar) via the router.
     """
     if _WORKER_PORTS_ENV:
         candidates = list(dict.fromkeys(WORKER_PORT_CANDIDATES))   # de-dup, order preserved
@@ -252,19 +255,20 @@ def resolve_worker_port():
             props = fetch_vllm_props(p)
         if isinstance(props, dict) and "_error" not in props:
             if p == 8001:
-                m = resolve_router_model_port(p) if props.get("role") == "router" else None
-                return m or p
+                router = p if props.get("role") == "router" else None
+                m = resolve_router_model_port(p) if router else None
+                return (m or p, router)
             n_ctx = props.get("n_ctx", 0) or 0
             if best is None or n_ctx > best[0]:
                 best = (n_ctx, p)
                 best_props = props
     if best:
-        if best_props.get("role") == "router":
-            m = resolve_router_model_port(best[1])
-            if m:
-                return m
-        return best[1]
-    return 8001  # nothing up → report the default port as down
+        router = best[1] if best_props.get("role") == "router" else None
+        m = resolve_router_model_port(router) if router else None
+        if m:
+            return (m, router)
+        return (best[1], router)
+    return (8001, None)  # nothing up → report the default port as down
 
 
 def resolve_router_model_port(router_port):
@@ -300,6 +304,47 @@ def resolve_router_model_port(router_port):
         if best is None or (ctx or 0) > best[0]:
             best = (ctx or 0, port)
     return best[1] if best else None
+
+
+def fetch_router_models(port):
+    """The router's /v1/models roster, normalized to what the sidebar shows: one dict per
+    model with its live status and, for loaded models, the port/ctx/alias/path parsed from
+    the launch args. Unloaded models carry no args → nulls. [] when the router is down."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/models", headers={"User-Agent": "curl"})
+        resp = scrape_open(req, timeout=3)
+        data = json.loads(read_capped(resp))
+    except Exception:
+        return []
+    entries = data.get("data") if isinstance(data, dict) else None
+    out = []
+    for m in (entries if isinstance(entries, list) else []):
+        if not isinstance(m, dict):
+            continue
+        status = m.get("status")
+        st = status if isinstance(status, dict) else {}
+        args = st.get("args") if isinstance(st.get("args"), list) else []
+        # args = [binary, --flag, value, ...] — the leading binary shifts the pairs,
+        # so scan element-by-element and skip the pair only on a flag hit (same as
+        # resolve_router_model_port); a blanket 2-skip reads values, never flags.
+        flags = {}
+        i = 0
+        while i < len(args):
+            if isinstance(args[i], str) and i + 1 < len(args):
+                if args[i] in ("--port", "--ctx-size", "--alias", "--path"):
+                    flags[args[i]] = args[i + 1]
+                    i += 2
+                    continue
+            i += 1
+        out.append({
+            "id": str(m.get("id", "") or ""),
+            "status": str(st.get("value", "") or ""),
+            "port": _to_int(flags.get("--port")) or None,
+            "ctx": _to_int(flags.get("--ctx-size")) or None,
+            "alias": flags.get("--alias"),
+            "path": flags.get("--path"),
+        })
+    return out
 
 # Secondary CPU-only llama-servers (optional). Each raw llama-server exposes the prometheus
 # /metrics, /props, /lora-adapters API on its own port; the dashboard shows one panel per entry.
@@ -1473,7 +1518,7 @@ class Handler(BaseHTTPRequestHandler):
     def _gather(self):
         # Primary worker — keep the llama_8001 key shape, now also carrying
         # loras + derived fields so the worker panel can show ctx-fill / LoRAs too.
-        worker_port = resolve_worker_port()
+        worker_port, router_port = resolve_worker_port()
         worker = fetch_endpoint(worker_port)
         secondaries = []
         for d in SECONDARIES:
@@ -1486,6 +1531,7 @@ class Handler(BaseHTTPRequestHandler):
             "timestamp": time.time(),
             "gpus": attach_gpu_tenants(parse_gpus(), worker),
             "worker_port": worker_port,
+            "router_models": fetch_router_models(router_port) if router_port else [],
             "llama_8001": worker,
             "secondaries": secondaries,
             "services": {

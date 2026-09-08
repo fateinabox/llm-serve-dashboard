@@ -119,6 +119,20 @@ aside.nav .group {
   color: var(--ink-mute);
   margin: 18px 8px 6px;
 }
+/* Router model roster — live from /metrics router_models. One row per model the
+   router knows; loaded = green dot + full ink, unloaded = dim. */
+aside.nav #nav-models { list-style: none; padding: 0; margin: 0; }
+aside.nav .nav-model {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-mute);
+}
+aside.nav .nav-model .nm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
+aside.nav .nav-model.on { color: var(--ink); }
+aside.nav .nav-model.on .nm-dot { background: var(--ok); box-shadow: 0 0 6px var(--ok-glow); }
+aside.nav .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+aside.nav .nav-model .nm-port { margin-left: auto; color: var(--ink-mute); }
 aside.nav .legend {
   margin-top: 24px;
   padding-top: 16px;
@@ -910,7 +924,10 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
   <div class="vault">local GPU +<br>serving metrics</div>
   <ul>
     <li><a href="#live" class="active">Live Metrics</a></li>
-    <li><a href="#library">Model Library</a></li>
+  </ul>
+  <div class="group">MODELS</div>
+  <ul id="nav-models">
+    <li class="nav-model dim">—</li>
   </ul>
   <div class="view-toggle" id="view-toggle">
     <button data-view="classic" onclick="setView('classic')">CLASSIC</button>
@@ -1015,15 +1032,6 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
   </div>
 
   <div class="warn-strip" id="metrics-warn" style="display:none;"></div>
-</section>
-
-
-<!-- ========== MODEL LIBRARY (registry-driven; edit models-registry.json) ========== -->
-<section id="library">
-  <h2>Model library <span class="count">— loadable inventory · served from fleet-metrics /models</span></h2>
-  <div class="metrics-grid" id="library-cards" style="grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); margin-top:12px;">
-    <div class="metric-sub">loading registry…</div>
-  </div>
 </section>
 
 
@@ -1890,6 +1898,7 @@ async function poll() {
     updateMetrics(data);
     renderThoughts(data);
     renderHero(data);
+    renderNavModels(data);
   } catch (e) {
     const status = document.getElementById('live-status');
     const poll = document.getElementById('poll-indicator');
@@ -1935,52 +1944,32 @@ setView(currentView());   // URL param > localStorage > classic
 poll();
 setInterval(poll, POLL_INTERVAL);
 
-// ========== MODEL LIBRARY (registry via fleet-metrics /models) ==========
-// Escape any registry-sourced string before it goes into innerHTML. The model
-// library is operator-edited JSON, but a launch flag / model name can legitimately
-// contain <, &, or a quote — without this, that corrupts the DOM (or injects markup).
+// ========== MODEL ROSTER (sidebar; live from /metrics router_models) ==========
+// One row per model the ROUTER knows — the static models-registry.json library is
+// gone, the router is the only source. loaded = green dot + full ink, unloaded = dim.
+// Model names and ids come from the router, not the operator — escape them all the
+// same way as registry strings did, or a model named "<script>" corrupts the DOM.
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-// The registry convention is `null` = unbenched/absent → hide the row. A real 0 or
-// false IS data (e.g. mtp:false), so show it. Presence = not null/undefined/''.
+// Presence check: null/undefined/'' = absent → show '—'. A real 0 or false IS data.
 const has = v => v !== null && v !== undefined && v !== '';
-const cell = v => has(v) ? escHtml(v) : '';
-async function renderLibrary() {
-  const box = document.getElementById('library-cards');
+function renderNavModels(data) {
+  const box = document.getElementById('nav-models');
   if (!box) return;
-  try {
-    const r = await fetch('/models', { cache: 'no-store' });
-    const reg = await r.json();
-    box.innerHTML = '';
-    for (const m of (reg.models || [])) {
-      const el = document.createElement('div');
-      el.className = 'metric-card';
-      const role = (m.role || '').split(' ')[0];
-      const badge = role === 'PRIMARY' ? 'var(--emerald, #24F094)' : role === 'SECONDARY' ? '#fbbf24' : 'var(--ink-dim)';
-      const row = (k, v) => v ? `<div class="metric-sub" style="margin-top:3px;"><span style="color:var(--ink-dim);">${k}</span> ${v}</div>` : '';
-      el.innerHTML =
-        `<div style="display:flex;justify-content:space-between;align-items:baseline;">
-           <div class="metric-label" style="font-size:13px;color:var(--ink);">${escHtml(m.name)}</div>
-           <span style="font-family:var(--mono);font-size:10px;color:${badge};border:1px solid ${badge};border-radius:4px;padding:1px 6px;">${escHtml(m.role)}</span>
-         </div>`
-        + row('tg', cell(m.tg)) + row('pp', cell(m.pp))
-        + row('ctx', cell(m.ctx))
-        + row('quant', [cell(m.quant), has(m.disk_gb) ? escHtml(m.disk_gb) + ' GB disk' : ''].filter(Boolean).join(' · '))
-        + row('kv', cell(m.kv)) + row('mtp', cell(m.mtp))
-        + row('serve', `${escHtml(m.engine)}${has(m.port) ? ' · :' + escHtml(m.port) : ''}${has(m.launcher) ? ' · ' + escHtml(m.launcher) : ''}`)
-        + row('extras', cell(m.extras))
-        + ((has(m.src) || has(reg.asof))
-            ? row('src', `<span style="font-size:10px;color:var(--ink-dim);">${[cell(m.src), has(reg.asof) ? 'asof ' + escHtml(reg.asof) : ''].filter(Boolean).join(' · ')}</span>`)
-            : '');
-      box.appendChild(el);
-    }
-  } catch (e) {
-    box.textContent = 'registry unavailable: ' + e;
+  const models = (data && Array.isArray(data.router_models)) ? data.router_models : [];
+  if (!models.length) {
+    box.innerHTML = '<li class="nav-model">no router</li>';
+    return;
   }
+  box.innerHTML = models.map(m =>
+    `<li class="nav-model${m.status === 'loaded' ? ' on' : ''}">` +
+    `<span class="nm-dot"></span>` +
+    `<span class="nm-name" title="${escHtml(m.id)}">${escHtml(m.id)}</span>` +
+    (m.port ? `<span class="nm-port">:${m.port}</span>` : '') +
+    `</li>`).join('');
 }
-renderLibrary();
 
 </script>
 

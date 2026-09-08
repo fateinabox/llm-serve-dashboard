@@ -49,8 +49,9 @@ chromium --headless --window-size=2880,1640 --virtual-time-budget=9000 \
 - **Network** — per-NIC rx/tx rates with a session total, plus a passive LAN view (ARP table and
   established connections; no scanning). RAM and load average are collected and returned on
   `/metrics` for other consumers, but the page has no panel for them.
-- **Model library** — a browsable inventory of your loadable models with quant, ctx, and measured
-  throughput, driven by a JSON registry you edit.
+- **Model roster** — the sidebar lists every model the models-dir router knows, live: loaded
+  models get a green dot and their serving port; unloaded ones sit dim. Sourced from the
+  router's `/v1/models` on the same 2-second poll — no registry to edit.
 - **Reasoning tap (optional)** — off by default. Point `THOUGHT_LOG` at a log of streamed
   `reasoning_content` and the panel shows its live tail. Separate per-request CoT panels require a
   proxy serving structured streams at `/thoughts` on `:8090`; that proxy is **not** included here.
@@ -172,8 +173,9 @@ busy multi-model rig.**
   localStorage) switches to a per-card hero layout — card telemetry paired with the worker it
   serves — in an AMD-red theme. The classic view is the default and is untouched.
 - **Local-first / no phone-home.** No CDNs, no web fonts, no analytics, no external requests of any
-  kind. Every request the page makes goes to its own origin: `/metrics` on a 2-second poll, plus
-  `/models` once for the model library.
+  kind. Every request the page makes goes to its own origin: `/metrics` on a 2-second poll.
+  (`/models` still serves the optional static registry for other consumers; the page no longer
+  fetches it.)
 - **Loopback by default.** The metrics server binds `127.0.0.1:8092`. `/metrics` reports GPU
   tenants, system stats, ARP neighbours and established connections, so it is not something to put
   on a network implicitly. To reach it from another machine, opt in and put your own auth or tunnel
