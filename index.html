@@ -1007,9 +1007,11 @@ body.view-amd .right-rail .net-grid { grid-template-columns: 1fr; }
   <div class="live-body">
   <div class="main-flow">
 
-  <!-- Active model hero card — decode + trend graph as the centerpiece -->
-  <div class="metric-card model-hero" style="margin-bottom:16px;">
-    <div class="metric-label">Model serving <span id="metric-model-port">:8001</span></div>
+  <!-- Active model hero card — decode + trend graph as the centerpiece.
+       The "MODEL SERVING :port" header sits ABOVE the card (sparkline-label), matching the
+       right-rail panels, so the card's top edge lines up horizontally with the right column. -->
+  <div class="sparkline-label" style="margin-top:24px;"><span>MODEL SERVING</span><span id="metric-model-port" style="color:var(--ink-dim);">:8001</span></div>
+  <div class="metric-card model-hero" style="margin-top:8px; margin-bottom:16px;">
     <div class="metric-value" id="metric-model">—</div>
     <div class="mh-grid">
       <div class="mh-cell mh-decode">
