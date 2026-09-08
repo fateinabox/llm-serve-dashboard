@@ -27,6 +27,13 @@
   --accent-glow: rgba(36,240,148,0.15);  /* glow background */
   --accent-glow2:rgba(36,240,148,0.06);  /* subtle glow */
 
+  /* Status green, isolated from --accent: the AMD theme turns the chrome accent RED,
+     and "online/serving" must stay green or it reads as an error. Classic theme:
+     identical to the accent. */
+  --ok:          var(--accent);
+  --ok-dim:      var(--accent-dim);
+  --ok-glow:     var(--accent-glow);
+
   --gold:    #f0b429;
   --cyan:    #4cc9f0;
   --violet:  #b48cf2;
@@ -313,7 +320,7 @@ section .blurb {
   border-radius: 100px;
   font-weight: 600;
 }
-.gpu-badge.serving { color: var(--accent); background: var(--accent-glow); border: 1px solid rgba(36,240,148,0.3); }
+.gpu-badge.serving { color: var(--ok); background: var(--ok-glow); border: 1px solid rgba(36,240,148,0.3); }
 .gpu-badge.idle { color: var(--ink-mute); background: var(--bg-elev-2); border: 1px solid var(--line-hi); }
 
 /* Bar charts */
@@ -331,7 +338,7 @@ section .blurb {
   transition: width 0.6s ease;
   position: relative;
 }
-.bar-fill.green { background: linear-gradient(90deg, var(--accent-dim), var(--accent)); }
+.bar-fill.green { background: linear-gradient(90deg, var(--ok-dim), var(--ok)); }
 .bar-fill.amber { background: linear-gradient(90deg, #f59e0b, var(--amber)); }
 .bar-fill.red { background: linear-gradient(90deg, #dc2626, var(--red)); }
 .bar-fill.cyan { background: linear-gradient(90deg, #0891b2, var(--cyan)); }
@@ -387,7 +394,7 @@ section .blurb {
   display: inline-block;
   margin-right: 6px;
 }
-.status-dot.up { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.status-dot.up { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .status-dot.down { background: var(--red); }
 
 /* Pulse animation for live indicator */
@@ -498,7 +505,7 @@ section .blurb {
   border: 1px solid var(--line-hi);
   margin-right: 4px;
 }
-.badge.green { color: var(--accent); border-color: rgba(36,240,148,0.35); background: rgba(36,240,148,0.06); }
+.badge.green { color: var(--ok); border-color: rgba(36,240,148,0.35); background: rgba(36,240,148,0.06); }
 .badge.amber { color: var(--amber); border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.06); }
 .badge.red   { color: var(--red);   border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.06); }
 .badge.cyan  { color: var(--cyan);  border-color: rgba(76,201,240,0.35); background: rgba(76,201,240,0.06); }
@@ -619,7 +626,7 @@ section .blurb {
   border-radius: 100px;
   font-weight: 600;
 }
-.vram-narration .verdict.ok { color: var(--accent); background: rgba(36,240,148,0.1); }
+.vram-narration .verdict.ok { color: var(--ok); background: rgba(36,240,148,0.1); }
 .vram-narration .verdict.bad { color: var(--red); background: rgba(239,68,68,0.1); }
 .vram-narration .verdict.tight { color: var(--amber); background: rgba(251,191,36,0.1); }
 
@@ -784,15 +791,15 @@ section .blurb {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-glow);
+  color: var(--ok);
+  background: var(--ok-glow);
   border: 1px solid rgba(36,240,148,0.3);
 }
 .live-status .dot {
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
   animation: pulse 1.8s infinite;
 }
 .live-status.offline {
@@ -828,12 +835,68 @@ body.data-stale .sparkline-wrap { opacity: 0.45; filter: grayscale(0.7); transit
   margin-left: auto;
 }
 
+/* ========== AMD THEME (view=amd) ==========
+   Red-tinted charcoal, AMD-red chrome. Status colors (--ok, --amber, --rose, --red)
+   are deliberately untouched: they are meaning, not chrome, and "online" must stay
+   green on red chrome or it reads as an error. */
+body.theme-amd {
+  --bg:          #0d0a0b;
+  --bg-elev:     #151012;
+  --bg-elev-2:   #1a1416;
+  --bg-deep:     #070506;
+  --line:        #261a1c;
+  --line-hi:     #332225;
+  --line-glow:   #ED1C24;
+  --ink:         #f5ecec;
+  --ink-dim:     #9a8a8a;
+  --ink-mute:    #6a5a5a;
+  --accent:      #ED1C24;
+  --accent-dim:  #d01820;
+  --accent-glow: rgba(237,28,36,0.15);
+  --accent-glow2:rgba(237,28,36,0.06);
+  --ok:          #22c55e;
+  --ok-dim:      #16a34a;
+  --ok-glow:     rgba(34,197,94,0.15);
+  --shadow: 0 1px 0 rgba(237,28,36,0.04), 0 8px 24px rgba(0,0,0,0.5);
+  --glow-shadow: 0 0 20px rgba(237,28,36,0.12);
+}
+
+/* ========== AMD HERO VIEW (view=amd) ==========
+   One panel per compute card, pairing the card's telemetry with the worker it
+   serves. Absorbs the five top cards and the GPU grid; everything else renders
+   exactly as in the classic view. */
+#hero { display: none; }
+body.view-amd #hero { display: block; }
+body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
+.hero-panel { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-hi);
+  border-radius: var(--radius); background: var(--bg-elev); margin-bottom: 10px; overflow: hidden; }
+.hero-left { padding: 16px; border-right: 1px solid var(--line); }
+.hero-right { padding: 16px; }
+.hero-id { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.hero-name { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--ink); }
+.hero-strip { display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 16px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--bg-elev); color: var(--ink-dim);
+  font-family: var(--mono); font-size: 11px; margin-bottom: 10px; }
+.hero-empty { padding: 24px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--bg-elev); color: var(--ink-dim); font-family: var(--mono); font-size: 12px; }
+.hero-w { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-top: 10px; line-height: 1.5; }
+.hero-w b { color: var(--ink); font-size: 16px; font-weight: 600; }
+.hero-w .age { color: var(--ink-mute); font-size: 10px; }
+
+/* Nav view toggle */
+.view-toggle { display: flex; gap: 4px; margin-top: 16px; }
+.view-toggle button { font-family: var(--mono); font-size: 10px; padding: 4px 8px; cursor: pointer;
+  background: var(--bg-elev); color: var(--ink-dim); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.view-toggle button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+
 @media (max-width: 980px) {
   .shell { grid-template-columns: 1fr; }
   aside.nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .arch { grid-template-columns: 1fr; }
   .state-grid { grid-template-columns: 1fr; }
   .metrics-grid { grid-template-columns: 1fr; }
+  .hero-panel { grid-template-columns: 1fr; }
+  .hero-left { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 </style>
 </head>
@@ -849,8 +912,12 @@ body.data-stale .sparkline-wrap { opacity: 0.45; filter: grayscale(0.7); transit
     <li><a href="#live" class="active">Live Metrics</a></li>
     <li><a href="#library">Model Library</a></li>
   </ul>
+  <div class="view-toggle" id="view-toggle">
+    <button data-view="classic" onclick="setView('classic')">CLASSIC</button>
+    <button data-view="amd" onclick="setView('amd')">AMD</button>
+  </div>
   <div class="legend">
-    <div style="margin-bottom:6px;"><span class="swatch" style="background:var(--accent)"></span>online</div>
+    <div style="margin-bottom:6px;"><span class="swatch" style="background:var(--ok)"></span>online</div>
     <div style="margin-bottom:6px;"><span class="swatch" style="background:var(--amber)"></span>loading / warming</div>
     <div><span class="swatch" style="background:var(--rose)"></span>offline / error</div>
   </div>
@@ -896,6 +963,9 @@ body.data-stale .sparkline-wrap { opacity: 0.45; filter: grayscale(0.7); transit
       <div class="metric-sub" id="metric-power-sub">waiting for first poll…</div>
     </div>
   </div>
+
+  <!-- AMD hero view (view=amd): one panel per compute card, rendered by renderHero() -->
+  <div id="hero"></div>
 
   <!-- GPU cards -->
   <div class="metrics-grid" id="gpu-cards" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
@@ -1151,7 +1221,9 @@ function updateGpuCard(gpu, index) {
   let label = '';
   let badgeClass = 'idle';
   if (gpu.tenant) {
-    label = gpu.tenant + (gpu.tenant.includes('llama-server') && window._workerLabel ? ' ' + window._workerLabel.replace(/^llama\.cpp /, '') : '');
+    // AMD has no per-process VRAM, so the backend ATTRIBUTES the worker to a card
+    // that holds VRAM — an estimate. The '~' keeps it readable as "likely", not fact.
+    label = (gpu.tenant_estimated ? '~' : '') + gpu.tenant + (gpu.tenant.includes('llama-server') && window._workerLabel ? ' ' + window._workerLabel.replace(/^llama\.cpp /, '') : '');
     badgeClass = 'serving';
   } else if (gpu.tenant !== undefined) {
     label = looksBusy ? 'active / tenant unknown' : 'idle / cold';
@@ -1192,9 +1264,9 @@ function updateGpuCard(gpu, index) {
       </div>
       <div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;color:var(--ink-mute);">
         <span>TEMP <span style="color:${tempColor};">${gpu.temp_c}&deg;C</span></span>
-        <span>FAN ${gpu.fan_pct}%</span>
-        <span>SM ${gpu.sm_clock_mhz}MHz</span>
-        <span>MEM ${gpu.mem_clock_mhz}MHz</span>
+        <span>FAN ${gpu.fan_pct ? gpu.fan_pct + '%' : '—'}</span>
+        <span>GPU ${gpu.sm_clock_mhz ? gpu.sm_clock_mhz + 'MHz' : '—'}</span>
+        <span>MEM ${gpu.mem_clock_mhz ? gpu.mem_clock_mhz + 'MHz' : '—'}</span>
       </div>
       ${linkRow}
     </div>
@@ -1690,16 +1762,134 @@ function renderThoughts(data) {
   Array.from(container.children).forEach(c => { if (c.id && !seen.has(c.id)) c.remove(); });
 }
 
+// ========== VIEW TOGGLE (classic | amd) ==========
+// AMD view = hero layout + AMD theme, behind one switch. Precedence:
+// ?view= param > localStorage > classic. The classic view is the default and
+// is untouched.
+const VIEWS = ['classic', 'amd'];
+let lastData = null;
+function currentView() {
+  const q = new URLSearchParams(location.search).get('view');
+  if (VIEWS.includes(q)) return q;
+  // Storage can be blocked (strict privacy modes) — a blocked read must not
+  // kill the page, so fall back to classic.
+  try {
+    const s = localStorage.getItem('llm-serve-view');
+    return VIEWS.includes(s) ? s : 'classic';
+  } catch (e) { return 'classic'; }
+}
+function setView(v) {
+  if (!VIEWS.includes(v)) return;
+  document.body.classList.toggle('view-amd', v === 'amd');
+  document.body.classList.toggle('theme-amd', v === 'amd');
+  // Both persistence calls are OPTIONAL: if storage or history are blocked, the
+  // view still applies for this load — it just won't persist. Throwing here
+  // would stop the script before poll() and the page would sit at CONNECTING.
+  try { localStorage.setItem('llm-serve-view', v); } catch (e) { /* storage blocked */ }
+  try {
+    const url = new URL(location.href);
+    if (v === 'amd') url.searchParams.set('view', 'amd');
+    else url.searchParams.delete('view');
+    history.replaceState(null, '', url);
+  } catch (e) { /* history blocked */ }
+  document.querySelectorAll('#view-toggle button').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === v));
+  renderHero(lastData);
+}
+
+// ========== AMD HERO VIEW ==========
+// One panel per compute card: left = the card's telemetry (same fields as the
+// classic GPU card), right = the worker it serves (from llama_8001). The worker
+// pane sits on the card that carries the backend's tenant (max-VRAM rule) —
+// never index 0. Display cards (compute_card === false) collapse to a one-line
+// strip. Field guards mirror the classic card: null/0 → —.
+function renderHero(data) {
+  if (!data) return;
+  const el = document.getElementById('hero');
+  if (!el || !document.body.classList.contains('view-amd')) return;
+  const gpus = Array.isArray(data.gpus) ? data.gpus : [];
+  el.innerHTML = '';
+  if (!gpus.length) {
+    el.innerHTML = '<div class="hero-empty">NO GPU DETECTED — nvidia-smi and amdgpu sysfs both empty</div>';
+    return;
+  }
+  const totalW = gpus.reduce((s, g) => s + (g.power_w || 0), 0);
+  const totalCap = gpus.reduce((s, g) => s + (g.power_limit_w || 0), 0);
+  const workerPort = data.worker_port ? (':' + data.worker_port) : ':8001';
+  el.insertAdjacentHTML('beforeend',
+    `<div class="hero-strip"><span>Σ POWER ${fmtNum(totalW, 0)}W / ${fmtNum(totalCap, 0)}W</span>` +
+    `<span>${gpus.length} card${gpus.length === 1 ? '' : 's'}</span></div>`);
+  const tenantCard = gpus.find(g => g.tenant);
+  for (const g of gpus) {
+    if (g.compute_card === false) el.insertAdjacentHTML('beforeend', heroStripHtml(g));
+    else el.insertAdjacentHTML('beforeend', heroPanelHtml(g, g === tenantCard ? data.llama_8001 : null, workerPort));
+  }
+}
+function heroPanelHtml(g, worker, port) {
+  const utilPct = g.gpu_util || 0;
+  const memPct = g.mem_total_mib ? (g.mem_used_mib / g.mem_total_mib) * 100 : 0;
+  const powerPct = g.power_limit_w ? (g.power_w / g.power_limit_w) * 100 : 0;
+  const looksBusy = utilPct > 5 || g.mem_used_mib > 512 || powerPct > 30;
+  const serving = g.tenant || looksBusy;
+  const label = g.tenant
+    ? (g.tenant_estimated ? '~' : '') + g.tenant
+    : (looksBusy ? 'active / tenant unknown' : 'idle / cold');
+  const left =
+    `<div class="hero-id"><span class="hero-name">${escHtml(g.name || 'GPU ' + g.index)}</span>` +
+    `<span class="gpu-badge ${serving ? 'serving' : 'idle'}">${serving ? 'SERVING' : 'IDLE'}</span></div>` +
+    `<div class="gpu-id" style="margin-top:2px;">${escHtml(label)}</div>` +
+    `<div style="display:grid;gap:8px;margin-top:10px;">` +
+    `<div><div class="bar-row"><span class="bar-label">GPU UTIL</span><span class="bar-value">${fmtNum(utilPct, 0)}%</span></div>` +
+    `<div class="bar-track"><div class="bar-fill ${utilPct > 80 ? 'red' : utilPct > 30 ? 'amber' : 'green'}" style="width:${Math.min(utilPct, 100)}%"></div></div></div>` +
+    `<div><div class="bar-row"><span class="bar-label">VRAM</span><span class="bar-value">${(g.mem_used_mib / 1024).toFixed(1)} / ${(g.mem_total_mib / 1024).toFixed(1)} GiB</span></div>` +
+    `<div class="bar-track"><div class="bar-fill ${memPct > 90 ? 'red' : memPct > 70 ? 'amber' : 'green'}" style="width:${Math.min(memPct, 100)}%"></div></div></div>` +
+    `<div><div class="bar-row"><span class="bar-label">POWER</span><span class="bar-value">${fmtNum(g.power_w, 0)}W / ${fmtNum(g.power_limit_w, 0)}W</span></div>` +
+    `<div class="bar-track"><div class="bar-fill ${powerPct > 80 ? 'red' : powerPct > 50 ? 'amber' : 'muted'}" style="width:${Math.min(powerPct, 100)}%"></div></div></div>` +
+    `<div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;color:var(--ink-mute);">` +
+    `<span>TEMP ${g.temp_c}°C</span><span>FAN ${g.fan_pct ? g.fan_pct + '%' : '—'}</span>` +
+    `<span>GPU ${g.sm_clock_mhz ? g.sm_clock_mhz + 'MHz' : '—'}</span><span>MEM ${g.mem_clock_mhz ? g.mem_clock_mhz + 'MHz' : '—'}</span></div>` +
+    gpuLinkRow(g) +
+    `</div>`;
+  return `<div class="hero-panel"><div class="hero-left">${left}</div><div class="hero-right">${heroWorkerHtml(worker, port)}</div></div>`;
+}
+function heroWorkerHtml(w, port) {
+  if (!w) return `<div class="hero-w">NO TENANT — active / unknown workload</div>`;
+  if (w.status !== 'up') {
+    return `<div class="hero-w"><span class="status-dot down" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;"></span>` +
+      ` WORKER DOWN — ${escHtml(port)} unreachable</div>`;
+  }
+  const props = w.props || {};
+  const der = w.derived || {};
+  const model = props.alias || 'loading...';
+  const ctx = props.n_ctx ? (props.n_ctx / 1024) + 'K' : '';
+  const age = a => (a ? ` <span class="age">· ${a}s ago</span>` : '');
+  return `<div class="hero-id"><span class="hero-name">${escHtml(model)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-dim);">${escHtml(port)}</span></div>` +
+    `<div class="hero-w">` +
+    `<div>DECODE <b>${fmtNum(der.decode_tps, 0)}</b> tok/s${age(der.decode_tps_age_s)}</div>` +
+    `<div>PROMPT <b>${fmtNum(der.prompt_tps, 0)}</b> tok/s${age(der.prompt_tps_age_s)}</div>` +
+    `<div>CTX ${der.ctx_fill_pct ? der.ctx_fill_pct + '%' : '—'}${ctx ? ' · ' + ctx : ''}</div>` +
+    `<div>REQ <b>${der.requests_processing || 0}</b> proc · ${der.requests_waiting || 0} wait</div>` +
+    `<div>TTFT ${der.ttft_ms ? der.ttft_ms + 'ms' : '—'} · ITL ${der.itl_ms ? der.itl_ms + 'ms' : '—'}</div>` +
+    `</div>`;
+}
+function heroStripHtml(g) {
+  return `<div class="hero-strip"><span>${escHtml(g.name || 'GPU ' + g.index)}</span><span>display</span>` +
+    `<span>${(g.gpu_util || 0) > 5 ? 'busy' : 'idle'}</span>` +
+    `<span>${(g.mem_used_mib / 1024).toFixed(1)} / ${(g.mem_total_mib / 1024).toFixed(1)} GiB</span><span>no tenant</span></div>`;
+}
+
 async function poll() {
   try {
     const resp = await fetch(METRICS_URL);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
+    lastData = data;
     // NB: staleness is cleared inside updateMetrics, only once the payload is known to carry
     // real data. Clearing it here would un-grey the page for any 200 response, including the
     // empty-GPU-list case that means collection failed.
     updateMetrics(data);
     renderThoughts(data);
+    renderHero(data);
   } catch (e) {
     const status = document.getElementById('live-status');
     const poll = document.getElementById('poll-indicator');
@@ -1741,6 +1931,7 @@ function syncGpuCards(n) {
 
 // Start
 initGpuCards();
+setView(currentView());   // URL param > localStorage > classic
 poll();
 setInterval(poll, POLL_INTERVAL);
 

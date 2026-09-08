@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 fleet-metrics.py — lightweight metrics endpoint for the LLM serving dashboard.
-Serves JSON from nvidia-smi + llama.cpp/vLLM /metrics + system stats.
-Runs on :8092 by default (FLEET_METRICS_PORT to move it). No deps beyond the
-Python stdlib + nvidia-smi.
+Serves JSON from nvidia-smi (or amdgpu sysfs) + llama.cpp/vLLM /metrics + system
+stats. Runs on :8092 by default (FLEET_METRICS_PORT to move it). No deps beyond
+the Python stdlib + nvidia-smi (NVIDIA) or /sys/class/drm (AMD).
 """
 import errno
+import glob
 import ipaddress
 import json
 import math
 import os
 import socket
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -391,6 +393,7 @@ def parse_nvidia_smi():
             "fan_pct": _to_int(parts[8]),
             "sm_clock_mhz": _to_int(parts[9]),
             "mem_clock_mhz": _to_int(parts[10]),
+            "compute_card": True,   # nvidia-smi only enumerates compute cards
         }
         if len(parts) >= len(_SMI_BASE_FIELDS) + len(_SMI_EXTRA_FIELDS):
             # Link state is what the card NEGOTIATED, not what the slot is wired for, and on a
@@ -458,6 +461,168 @@ def attach_gpu_procs(gpus):
         plist = procs_by_idx.get(g["index"], [])
         g["procs"] = plist
         g["tenant"] = " + ".join(sorted({p["name"] for p in plist})) if plist else ""
+    return gpus
+
+
+# --- AMD (amdgpu) GPU path -----------------------------------------------------------
+# There is no headless AMD equivalent of nvidia-smi: amdgpu_top and radeon_top are
+# TUIs (they panic without a TTY) and rocm-smi is a full ROCm install. Everything
+# they show is already in sysfs, which is what this path reads:
+#   /sys/class/drm/cardN/device/{gpu_busy_percent,mem_info_vram_*,current_link_*}
+#   /sys/class/drm/cardN/device/hwmon*/{temp1_input,power1_average,power1_cap,fan1_*,freq1_input}
+# The per-card dicts intentionally match parse_nvidia_smi()'s shape, so the
+# dashboard renders either backend unchanged. AMD's driver exposes no per-process
+# VRAM (no --query-compute-apps equivalent), so tenant attribution is an estimate
+# — see attach_gpu_tenants.
+
+# Negotiated PCIe speed (GT/s) -> generation.
+_PCIE_GTS_TO_GEN = {2.0: 1, 4.0: 2, 8.0: 3, 16.0: 4, 32.0: 5, 64.0: 6}
+
+_GPU_BACKEND = "none"   # "nvidia" | "amd" | "none" — set by parse_gpus()
+
+
+def _sysfs_int(path):
+    """A sysfs counter as int, or None on any error. sysfs reads are the entire AMD
+    data path, so one unreadable attribute costs that field — never the whole panel."""
+    try:
+        with open(path) as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _amd_card_name(dev_path):
+    """Human name for an amdgpu card, from lspci when it is on PATH."""
+    try:
+        real = os.path.realpath(dev_path)
+        # The path carries every ancestor bridge as a PCI-style segment; the card is
+        # the LAST one, and the first is a host bridge with a useless name.
+        slots = [p for p in real.split("/")
+                 if re.fullmatch(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]+\.[0-9a-f]", p)]
+        if slots:
+            out = subprocess.check_output(["lspci", "-s", slots[-1]], text=True, timeout=5).strip()
+            name = out.split(":", 2)[2].strip()
+            prefix = "Advanced Micro Devices, Inc. [AMD/ATI] "
+            return name[len(prefix):] if name.startswith(prefix) else name
+    except Exception:
+        pass
+    return "AMD GPU"
+
+
+def parse_amd_gpus():
+    """Enumerate amdgpu cards via /sys/class/drm, returning the same list of dicts
+    parse_nvidia_smi() produces. Always a list (empty when no amdgpu is present);
+    a card missing any attribute degrades that field to 0, never drops the card."""
+    gpus = []
+    for dev in sorted(glob.glob("/sys/class/drm/card*/device")):
+        try:
+            uevent = open(dev + "/uevent").read()
+        except OSError:
+            continue
+        if "DRIVER=amdgpu" not in uevent:
+            continue
+        busy = _sysfs_int(dev + "/gpu_busy_percent")
+        if busy is None:
+            continue
+        m = re.search(r"card(\d+)$", dev)
+        vram_used = _sysfs_int(dev + "/mem_info_vram_used") or 0
+        vram_total = _sysfs_int(dev + "/mem_info_vram_total") or 0
+        gpu = {
+            "index": int(m.group(1)) if m else 0,
+            "name": _amd_card_name(dev),
+            "gpu_util": float(busy),
+            "mem_used_mib": round(vram_used / 2**20),
+            "mem_total_mib": round(vram_total / 2**20),
+            "power_w": 0.0,
+            "power_limit_w": 0.0,
+            "temp_c": 0,
+            "fan_pct": 0,
+            "sm_clock_mhz": 0,
+            "mem_clock_mhz": 0,
+            "throttle_mask": 0,
+            "throttle": [],
+            # True when the card carries a power cap sensor — a compute card with real
+            # power telemetry. Display iGPUs have none, and their busy%/VRAM are driven
+            # by the display engine, so the hero view strips them instead of hero-ing.
+            "compute_card": False,
+        }
+        # The GPU's own hwmon sits under the device node (kernels >= 5.x nest it as
+        # device/hwmon/hwmonN; older ones link it as device/hwmonN). Compute cards
+        # carry temp/power/fan/clock sensors; display-only iGPUs often carry none.
+        hms = sorted(set(glob.glob(dev + "/hwmon/hwmon*")) | set(glob.glob(dev + "/hwmon*")))
+        for hm in hms:
+            temp = _sysfs_int(hm + "/temp1_input")
+            if temp is None:
+                continue
+            gpu["temp_c"] = round(temp / 1000.0)          # 1/100 degC
+            power = _sysfs_int(hm + "/power1_average")
+            if power is not None:
+                gpu["power_w"] = round(power / 1e6, 1)    # uW
+            cap = _sysfs_int(hm + "/power1_cap")
+            if cap:
+                gpu["power_limit_w"] = round(cap / 1e6)
+                gpu["compute_card"] = True
+            fan = _sysfs_int(hm + "/fan1_input")
+            fan_min = _sysfs_int(hm + "/fan1_min") or 0
+            fan_max = _sysfs_int(hm + "/fan1_max") or 0
+            if fan is not None and fan_max > fan_min:
+                gpu["fan_pct"] = int(round((fan - fan_min) / (fan_max - fan_min) * 100))
+            freq = _sysfs_int(hm + "/freq1_input")
+            if freq:
+                gpu["sm_clock_mhz"] = freq // 1000000      # Hz
+            break
+        # PCIe: the driver reports the NEGOTIATED link (speed in GT/s + width), not the
+        # slot/card maximums, so *_max stay 0 and the frontend renders a bare "LINK".
+        try:
+            speed = float(open(dev + "/current_link_speed").read().split(" ")[0])
+        except (OSError, ValueError):
+            speed = 0.0
+        gpu["pcie_gen"] = _PCIE_GTS_TO_GEN.get(speed, 0)
+        gpu["pcie_gen_max"] = 0
+        gpu["pcie_width"] = _sysfs_int(dev + "/current_link_width") or 0
+        gpu["pcie_width_max"] = 0
+        gpus.append(gpu)
+    return gpus
+
+
+def parse_gpus():
+    """All GPUs on this box: nvidia-smi when it has cards, the amdgpu sysfs path
+    otherwise. One vendor per box — a mixed box would need a merge, and the fleet
+    does not run both."""
+    global _GPU_BACKEND
+    if shutil.which("nvidia-smi"):
+        gpus = parse_nvidia_smi()
+        if gpus:
+            _GPU_BACKEND = "nvidia"
+            return gpus
+    gpus = parse_amd_gpus()
+    _GPU_BACKEND = "amd" if gpus else "none"
+    return gpus
+
+
+def attach_gpu_tenants(gpus, worker):
+    """Annotate each GPU dict with its compute tenants.
+
+    NVIDIA: ground truth from nvidia-smi --query-compute-apps (attach_gpu_procs).
+    AMD: the driver exposes no per-process VRAM, so the fleet's LLM worker is
+    ATTRIBUTED to the card holding the most VRAM — an estimate, flagged
+    tenant_estimated. An iGPU's display engine alone holds over a GiB and spins the
+    busy% to 100, so a threshold keeps an idle desktop from reading as "serving",
+    and "most VRAM" picks the compute card when iGPU and dGPU coexist."""
+    if not isinstance(gpus, list) or not gpus:
+        return gpus
+    if _GPU_BACKEND == "nvidia":
+        return attach_gpu_procs(gpus)
+    worker_up = isinstance(worker, dict) and worker.get("status") == "up"
+    candidates = [g for g in gpus if g["mem_used_mib"] > 128]
+    top = max(candidates, key=lambda g: g["mem_used_mib"]) if (worker_up and candidates) else None
+    for g in gpus:
+        g["procs"] = []
+        if g is top:
+            g["tenant"] = "llama-server"
+            g["tenant_estimated"] = True
+        else:
+            g["tenant"] = ""
     return gpus
 
 
@@ -1140,7 +1305,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if self.path == "/metrics" or self.path == "/api/metrics":
+        # The page deep-links itself (?view=amd) — match on the path without the query
+        # string, or "?view=amd" 404s and the AMD view is unreachable by URL.
+        path = self.path.split('?', 1)[0]
+        if path == "/metrics" or path == "/api/metrics":
             if FIXTURE:
                 payload = json.load(open(os.path.expanduser(FIXTURE)))
             else:
@@ -1152,7 +1320,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        elif self.path == "/models":
+        elif path == "/models":
             # loadable-model registry for the dashboard MODEL LIBRARY (edit models-registry.json)
             try:
                 reg = os.environ.get("MODELS_REGISTRY",
@@ -1168,14 +1336,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-        elif self.path == "/health":
+        elif path == "/health":
             body = b'{"status":"ok"}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self._send_cors()
             self.end_headers()
             self.wfile.write(body)
-        elif self.path in ("/", "/index.html"):
+        elif path in ("/", "/index.html"):
             # Serve the dashboard from this origin so its fetches are same-origin and no CORS
             # grant is needed. Fixed path next to this file — nothing from the request reaches
             # the filesystem, so there is no traversal surface here.
@@ -1262,7 +1430,7 @@ class Handler(BaseHTTPRequestHandler):
             secondaries.append(snap)
         return {
             "timestamp": time.time(),
-            "gpus": attach_gpu_procs(parse_nvidia_smi()),
+            "gpus": attach_gpu_tenants(parse_gpus(), worker),
             "worker_port": worker_port,
             "llama_8001": worker,
             "secondaries": secondaries,

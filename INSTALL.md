@@ -12,13 +12,15 @@ every security note. This page is just the path.
 | | |
 |---|---|
 | **Python 3.8 or newer** | `python3 --version`. Nothing to install — the backend is stdlib only. |
-| **`nvidia-smi` on your PATH** | `nvidia-smi --version`. Ships with the NVIDIA driver. |
+| **GPU access** | NVIDIA: `nvidia-smi` on your PATH (`nvidia-smi --version`; ships with the driver). AMD: the `amdgpu` kernel driver, which exposes `/sys/class/drm/card*/device/`. `lspci` is optional — it names the cards. |
 | **A browser** | Any current one. |
 
 There is no `pip install`, no `npm install`, no build step, and no toolchain. If you have
-Python and a working NVIDIA driver, you already have everything.
+Python and a working GPU driver (NVIDIA or AMD), you already have everything. AMD needs no
+extra tools: `amdgpu_top`/`radeon_top` are TUIs and the dashboard reads the same data straight
+from sysfs.
 
-> **No NVIDIA GPU?** It still runs — the GPU panel is simply empty and everything else
+> **No GPU?** It still runs — the GPU panel is simply empty and everything else
 > (worker throughput, network, system) works normally. It will not crash and it will not
 > refuse to start.
 
@@ -38,7 +40,8 @@ Open <http://localhost:8092/> — or `xdg-open http://localhost:8092/` on Linux,
 `open http://localhost:8092/` on macOS.
 
 That is the whole install. The backend serves the page *and* the data, so there is no second
-process, no web server to configure, and no CORS to grant.
+process, no web server to configure, and no CORS to grant. A `CLASSIC | AMD` toggle in the nav
+(or `?view=amd`) switches to a per-card hero layout with an AMD-red theme; classic is the default.
 
 > **Do not open `index.html` by double-clicking it.** A `file://` page cannot read the
 > metrics, deliberately — see the README's note on `Origin: null`. Always go through
@@ -61,7 +64,7 @@ Three things, in order. If all three pass, you are done.
 # 1. the server is alive
 curl -s http://localhost:8092/health
 
-# 2. it can see your GPUs  (prints a number — 0 is fine if you have no NVIDIA card)
+# 2. it can see your GPUs  (prints a number — 0 is fine if you have no GPU)
 curl -s http://localhost:8092/metrics | python3 -c "import json,sys; print(len(json.load(sys.stdin)['gpus']), 'GPU(s)')"
 
 # 3. it found your model server  (prints the port, or None)
@@ -144,9 +147,11 @@ message.
 **`address already in use`.** Something else has the port. Move yours with
 `FLEET_METRICS_PORT=9100`, or find the occupant with `ss -ltnp | grep 8092`.
 
-**GPU panel is empty.** Run `nvidia-smi` by hand. If that fails, the driver is the problem,
-not this tool. If it works but the panel is still empty, check the backend's stderr — it
-prints exactly which query failed and whether it fell back.
+**GPU panel is empty.** NVIDIA: run `nvidia-smi` by hand. If that fails, the driver is the
+problem, not this tool; if it works but the panel is still empty, check the backend's stderr —
+it prints exactly which query failed. AMD: check that
+`/sys/class/drm/card*/device/gpu_busy_percent` exists — if it does not, the `amdgpu` driver is
+not loaded or too old.
 
 **GPU cards show, but no PCIe or throttle detail.** Your driver renamed those fields
 (`clocks_throttle_reasons.*` became `clocks_event_reasons.*` in newer builds). The backend
@@ -190,6 +195,8 @@ system state, no registry entries. It writes nothing to disk while running.
 
 ---
 
-*Verified on Python 3.12 against a 4×RTX 3090 box: default port, custom port, port collision,
-invalid port values, and a deliberately broken `nvidia-smi` (page still serves, GPU list
-empty, clear message on stderr).*
+*Verified on Python 3.12 against a 4×RTX 3090 box (NVIDIA path: default port, custom port,
+port collision, invalid port values, and a deliberately broken `nvidia-smi` — page still serves,
+GPU list empty, clear message on stderr) and on Python 3.14 against an RX 7900 GRE box
+(AMD path: live util/VRAM/power/temperature/fan/clock/PCIe from sysfs, tenant attributed to
+the card holding the model).*

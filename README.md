@@ -5,7 +5,8 @@ per-model throughput, KV/context fill, and system stats for **llama.cpp** and **
 green terminal-styled page.
 
 No framework, no build step, no external requests. The frontend is one `index.html`; the backend is
-one stdlib Python file that reads `nvidia-smi` and each server's Prometheus `/metrics` — and also
+one stdlib Python file that reads `nvidia-smi` (NVIDIA) or amdgpu sysfs (AMD) and each
+server's Prometheus `/metrics` — and also
 serves the page, so the dashboard is same-origin and needs no CORS grant.
 
 ![LLM Serve Dashboard](docs/screenshot.png)
@@ -23,9 +24,10 @@ chromium --headless --window-size=2880,1640 --virtual-time-budget=9000 \
 
 ## What it shows
 
-- **GPUs** — per-card utilization, VRAM, power, temperature, clocks, and the actual compute
-  tenants on each card (pulled from `nvidia-smi --query-compute-apps`, so cards are labeled from
-  ground truth, not VRAM guesswork). Also the **negotiated PCIe link** and any **active throttle
+- **GPUs** — per-card utilization, VRAM, power, temperature, clocks, and the compute tenants on
+  each card. NVIDIA labels come from `nvidia-smi --query-compute-apps` (ground truth); AMD's
+  driver exposes no per-process VRAM, so the worker is *attributed* to the card holding VRAM and
+  shown with a `~` prefix. Also the **negotiated PCIe link** and any **active throttle
   reason**: a card sitting at `GEN3 x1 of x16` or capped at `sw_power_cap` looks perfectly healthy
   on every other gauge, and is usually the answer to "why is this one card slow?".
 - **Primary worker** — decode & prefill tokens/sec, request counts, queue depth, context/KV fill.
@@ -164,6 +166,9 @@ busy multi-model rig.**
 
 ## Notes
 
+- **AMD hero view.** A `CLASSIC | AMD` toggle in the nav (or `?view=amd`, persisted in
+  localStorage) switches to a per-card hero layout — card telemetry paired with the worker it
+  serves — in an AMD-red theme. The classic view is the default and is untouched.
 - **Local-first / no phone-home.** No CDNs, no web fonts, no analytics, no external requests of any
   kind. Every request the page makes goes to its own origin: `/metrics` on a 2-second poll, plus
   `/models` once for the model library.
