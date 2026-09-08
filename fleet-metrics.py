@@ -587,7 +587,9 @@ def _sysfs_int(path):
 
 
 def _amd_card_name(dev_path):
-    """Human name for an amdgpu card, from lspci when it is on PATH."""
+    """Human name for an amdgpu card: the board name from lspci's Subsystem line
+    (identifies the exact SKU where the device ID is shared across several),
+    falling back to the PCI device name."""
     try:
         real = os.path.realpath(dev_path)
         # The path carries every ancestor bridge as a PCI-style segment; the card is
@@ -598,7 +600,24 @@ def _amd_card_name(dev_path):
             out = subprocess.check_output(["lspci", "-s", slots[-1]], text=True, timeout=5).strip()
             name = out.split(":", 2)[2].strip()
             prefix = "Advanced Micro Devices, Inc. [AMD/ATI] "
-            return name[len(prefix):] if name.startswith(prefix) else name
+            device_name = name[len(prefix):] if name.startswith(prefix) else name
+            # The Subsystem line names the exact board. Unregistered subsystems
+            # print as "<vendor> Device <id>", which is not a name.
+            try:
+                verbose = subprocess.check_output(["lspci", "-s", slots[-1], "-v"],
+                                                  text=True, timeout=5)
+                m = re.search(r"^\tSubsystem:\s*(.+)$", verbose, re.M)
+                if m:
+                    board = m.group(1).strip()
+                    if not re.search(r"Device [0-9a-f]+$", board):
+                        # Drop the vendor prefix ("Sapphire Technology Limited ") when present.
+                        board = re.sub(r"^(?:[A-Z][a-zA-Z0-9'&.-]+ )+"
+                                       r"(?:Limited|Technology|Inc\.?|Corp\.?|Ltd\.?) +", "", board)
+                        if board:
+                            return board
+            except (subprocess.CalledProcessError, OSError):
+                pass
+            return device_name
     except Exception:
         pass
     return "AMD GPU"
@@ -1344,8 +1363,12 @@ def get_lan():
     return data
 
 
+_CPU_SNAP = None  # (idle_jiffies, total_jiffies) from the previous /proc/stat read
+
+
 def get_system():
-    """RAM + loadavg."""
+    """RAM + loadavg + CPU utilization (delta between consecutive /proc/stat reads)."""
+    global _CPU_SNAP
     try:
         meminfo = {}
         with open("/proc/meminfo") as f:
@@ -1353,17 +1376,31 @@ def get_system():
                 parts = line.strip().split(":")
                 if len(parts) == 2:
                     meminfo[parts[0]] = int(parts[1].strip().split()[0])  # kB
-        total = meminfo.get("MemTotal", 0)
-        avail = meminfo.get("MemAvailable", 0)
+        ram_total = meminfo.get("MemTotal", 0)
+        ram_avail = meminfo.get("MemAvailable", 0)
         with open("/proc/loadavg") as f:
             load = f.read().strip().split()
+        # /proc/stat's aggregate `cpu` line: user nice system idle iowait ...
+        cpu_pct = None
+        with open("/proc/stat") as f:
+            for line in f:
+                if line.startswith("cpu "):
+                    f_ = [int(x) for x in line.split()[1:]]
+                    idle = f_[3] + f_[4]  # idle + iowait: both are "not working"
+                    cpu_total = sum(f_)
+                    if _CPU_SNAP and cpu_total > _CPU_SNAP[1]:
+                        dt = cpu_total - _CPU_SNAP[1]
+                        cpu_pct = round(100.0 * (dt - (idle - _CPU_SNAP[0])) / dt, 1)
+                    _CPU_SNAP = (idle, cpu_total)
+                    break
         return {
-            "ram_total_mb": total // 1024,
-            "ram_used_mb": (total - avail) // 1024,
-            "ram_avail_mb": avail // 1024,
+            "ram_total_mb": ram_total // 1024,
+            "ram_used_mb": (ram_total - ram_avail) // 1024,
+            "ram_avail_mb": ram_avail // 1024,
             "load_1min": float(load[0]),
             "load_5min": float(load[1]),
             "load_15min": float(load[2]),
+            "cpu_pct": cpu_pct,
         }
     except Exception:
         return {}

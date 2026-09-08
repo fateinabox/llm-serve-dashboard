@@ -311,6 +311,40 @@ section .blurb {
   margin-top: 6px;
 }
 
+/* === MODEL HERO CARD (active model: decode + graph as the centerpiece) === */
+.model-hero .mh-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+.model-hero .mh-cell {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.10);
+}
+.model-hero .mh-k {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--ink-mute);
+  margin-bottom: 6px;
+}
+.model-hero .mh-v {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.model-hero .mh-u { font-size: 12px; color: var(--ink-dim); font-weight: 400; margin-left: 4px; }
+.model-hero .mh-decode .mh-v { font-size: 32px; }
+.model-hero .mh-spark { margin-top: 8px; }
+.model-hero .mh-spark canvas { height: 80px; }
+.model-hero .mh-track { margin-top: 8px; }
+
 /* GPU cards */
 .gpu-card {
   background: var(--bg-elev);
@@ -367,18 +401,6 @@ section .blurb {
 .bar-fill.cyan { background: linear-gradient(90deg, #0891b2, var(--cyan)); }
 .bar-fill.violet { background: linear-gradient(90deg, #7c3aed, var(--violet)); }
 .bar-fill.muted { background: var(--line-hi); }
-/* Secondary-server live-metrics cards */
-.secondary-card .dr-head { display:flex; align-items:center; gap:8px; margin-bottom:2px; }
-.secondary-card .dr-name { font-family:var(--mono); font-size:13px; font-weight:600; color:var(--ink); }
-.secondary-card .dr-model { font-size:11px; color:var(--ink-dim); margin-bottom:12px; }
-.secondary-card .dr-tps { display:flex; gap:18px; margin-bottom:12px; }
-.secondary-card .dr-tps .v { font-family:var(--mono); font-size:20px; font-weight:600; color:var(--accent); line-height:1.1; }
-.secondary-card .dr-tps .v.dim { color:var(--ink-dim); }
-.secondary-card .dr-tps .l { font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-dim); }
-.secondary-card .dr-loras { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
-.secondary-card.is-down { opacity:0.55; }
-.lora-badge { font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:4px; color:var(--cyan); background:rgba(76,201,240,0.12); border:1px solid rgba(76,201,240,0.3); }
-.lora-badge.none { color:var(--ink-dim); background:transparent; border:1px dashed var(--line-hi); }
 .bar-row {
   display: flex;
   justify-content: space-between;
@@ -906,6 +928,25 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
 .hero-w b { color: var(--ink); font-size: 16px; font-weight: 600; }
 .hero-w .age { color: var(--ink-mute); font-size: 10px; }
 
+/* ========== 3-COLUMN LAYOUT (AMD view) ==========
+   Main flow (model hero, GPU panels, sparkline, reasoning) spans cols 1-2;
+   System CPU/Mem + Network sit in a fixed right rail (col 3). Classic view
+   keeps the original single-column stack (.live-body renders as block). */
+.live-body { display: block; }
+body.view-amd .live-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr 320px;
+  gap: 0 16px;
+  align-items: start;
+}
+body.view-amd .main-flow { grid-column: 1 / 3; }
+body.view-amd .right-rail { grid-column: 3 / 4; }
+/* Let the 3-column grid fill the page — main is capped at 1400px otherwise. */
+body.view-amd main { max-width: none; }
+.sys-grid, .net-grid { grid-template-columns: 2fr 1fr; }
+body.view-amd .right-rail .sys-grid,
+body.view-amd .right-rail .net-grid { grid-template-columns: 1fr; }
+
 /* Nav view toggle */
 .view-toggle { display: flex; gap: 4px; margin-top: 16px; }
 .view-toggle button { font-family: var(--mono); font-size: 10px; padding: 4px 8px; cursor: pointer;
@@ -918,8 +959,11 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
   .arch { grid-template-columns: 1fr; }
   .state-grid { grid-template-columns: 1fr; }
   .metrics-grid { grid-template-columns: 1fr; }
+  .model-hero .mh-grid { grid-template-columns: 1fr; }
   .hero-panel { grid-template-columns: 1fr; }
   .hero-left { border-right: 0; border-bottom: 1px solid var(--line); }
+  body.view-amd .live-body { grid-template-columns: 1fr; gap: 0; }
+  body.view-amd .main-flow, body.view-amd .right-rail { grid-column: auto; }
 }
 </style>
 </head>
@@ -960,24 +1004,42 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
     <span class="net-indicator" id="net-indicator"><span class="net-iface" id="net-iface">net</span> <span class="net-rx" id="net-rx">↓ —</span> · <span class="net-tx" id="net-tx">↑ —</span></span>
   </div>
   <div class="h2-line"></div>
+  <div class="live-body">
+  <div class="main-flow">
 
-  <!-- Top metric cards -->
+  <!-- Active model hero card — decode + trend graph as the centerpiece -->
+  <div class="metric-card model-hero" style="margin-bottom:16px;">
+    <div class="metric-label">Model serving <span id="metric-model-port">:8001</span></div>
+    <div class="metric-value" id="metric-model">—</div>
+    <div class="mh-grid">
+      <div class="mh-cell mh-decode">
+        <div class="mh-k">DECODE <span id="decode-range" style="color:var(--accent);">—</span></div>
+        <div class="mh-v"><span id="metric-decode-tps">—</span><span class="mh-u">tok/s</span></div>
+        <div class="sparkline-wrap mh-spark"><canvas id="spark-decode" width="600" height="80"></canvas></div>
+      </div>
+      <div class="mh-cell">
+        <div class="mh-k">PROMPT</div>
+        <div class="mh-v"><span id="metric-prompt-tps">—</span><span class="mh-u">tok/s</span></div>
+      </div>
+      <div class="mh-cell">
+        <div class="mh-k">CTX FILL</div>
+        <div class="mh-v" id="mh-ctx">—</div>
+        <div class="bar-track mh-track"><div class="bar-fill cyan" id="mh-ctx-fill" style="width:0%;"></div></div>
+      </div>
+      <div class="mh-cell">
+        <div class="mh-k">SEATS</div>
+        <div class="mh-v" id="mh-seats">—</div>
+      </div>
+      <div class="mh-cell">
+        <div class="mh-k">QUEUE</div>
+        <div class="mh-v" id="mh-queue">—</div>
+      </div>
+    </div>
+    <div class="metric-sub" id="metric-model-sub">connecting...</div>
+  </div>
+
+  <!-- Remaining top cards -->
   <div class="metrics-grid" id="metric-cards">
-    <div class="metric-card">
-      <div class="metric-label">Model serving <span id="metric-model-port">:8001</span></div>
-      <div class="metric-value" id="metric-model">—</div>
-      <div class="metric-sub" id="metric-model-sub">connecting...</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Prompt throughput</div>
-      <div class="metric-value"><span id="metric-prompt-tps">—</span><span class="metric-unit">tok/s</span></div>
-      <div class="metric-sub" id="metric-prompt-sub">prompt tokens: —</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Decode throughput</div>
-      <div class="metric-value"><span id="metric-decode-tps">—</span><span class="metric-unit">tok/s</span></div>
-      <div class="metric-sub" id="metric-decode-sub">predicted tokens: —</div>
-    </div>
     <div class="metric-card">
       <div class="metric-label">Request latency <span id="metric-lat-note" style="color:var(--ink-dim);font-weight:normal;"></span></div>
       <div class="metric-value"><span id="metric-ttft">—</span><span class="metric-unit">ms TTFT</span></div>
@@ -999,21 +1061,11 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
   </div>
 
   <!-- Sparkline charts -->
-  <div class="metrics-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="metrics-grid" style="grid-template-columns: 1fr;">
     <div class="metric-card">
       <div class="sparkline-label"><span>GPU UTILIZATION (<span id="gpu-util-count">—</span>)</span><span id="gpu-util-range" style="color:var(--accent);">0%</span></div>
       <div class="sparkline-wrap"><canvas id="spark-gpu-util" width="600" height="60"></canvas></div>
     </div>
-    <div class="metric-card">
-      <div class="sparkline-label"><span>DECODE THROUGHPUT (tok/s)</span><span id="decode-range" style="color:var(--accent);">0</span></div>
-      <div class="sparkline-wrap"><canvas id="spark-decode" width="600" height="60"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Secondary-server live metrics -->
-  <div class="sparkline-label" style="margin-top:24px;"><span>SECONDARY SERVERS — live</span><span id="secondaries-summary" style="color:var(--ink-dim);">—</span></div>
-  <div class="metrics-grid" id="secondary-cards" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top:8px;">
-    <!-- secondary-server cards generated by JS -->
   </div>
 
   <!-- Optional reasoning tap — live reasoning_content (CoT) if you tee it to a log (THOUGHT_LOG) -->
@@ -1028,9 +1080,27 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
     </div>
   </div>
 
+  </div><!-- /.main-flow -->
+  <div class="right-rail">
+
+  <!-- System vitals — RAM + load average -->
+  <div class="sparkline-label" style="margin-top:24px;"><span>SYSTEM — RAM + load avg</span><span id="sys-summary" style="color:var(--ink-dim);">—</span></div>
+  <div class="metrics-grid sys-grid" style="margin-top:8px;">
+    <div class="metric-card">
+      <div class="sparkline-wrap"><canvas id="spark-ram" width="600" height="60"></canvas></div>
+    </div>
+    <div class="metric-card">
+      <div class="bar-row"><span class="bar-label">RAM</span><span class="bar-value" id="sys-ram-value">—</span></div>
+      <div class="bar-track"><div class="bar-fill cyan" id="sys-ram-fill" style="width:0%;"></div></div>
+      <div class="bar-row" style="margin-top:10px;"><span class="bar-label">CPU</span><span class="bar-value" id="sys-cpu-value">—</span></div>
+      <div class="bar-track"><div class="bar-fill cyan" id="sys-cpu-fill" style="width:0%;"></div></div>
+      <div class="metric-sub" id="sys-load" style="margin-top:12px; line-height:1.7;">—</div>
+    </div>
+  </div>
+
   <!-- Network traffic panel — rx/tx rate graph (downloads, spikes, jitter) + passive LAN view -->
   <div class="sparkline-label" style="margin-top:24px;"><span>NETWORK — <span id="net-panel-iface" style="color:var(--ink-dim);">—</span></span><span style="color:var(--accent);"><span id="net-session">Σ — this session</span> · <span id="net-peak">peak ↓ —</span></span></div>
-  <div class="metrics-grid" style="grid-template-columns: 2fr 1fr; margin-top:8px;">
+  <div class="metrics-grid net-grid" style="margin-top:8px;">
     <div class="metric-card">
       <div class="sparkline-wrap"><canvas id="spark-net" width="600" height="60"></canvas></div>
     </div>
@@ -1039,6 +1109,8 @@ body.view-amd #metric-cards, body.view-amd #gpu-cards { display: none; }
       <div id="lan-list" class="metric-sub" style="line-height:1.7; margin-top:6px;">—</div>
     </div>
   </div>
+  </div><!-- /.right-rail -->
+  </div><!-- /.live-body -->
 
   <div class="warn-strip" id="metrics-warn" style="display:none;"></div>
 </section>
@@ -1084,6 +1156,7 @@ const history = {
   promptTps: [],
   netRx: [],
   netTx: [],
+  ramUsed: [],
 };
 let netSession = { startRx: null, peakRx: 0 };  // page-load baseline for the Σ-downloaded counter
 const MAX_HISTORY = 120; // 4 minutes at 2s intervals
@@ -1392,8 +1465,6 @@ function updateMetrics(data) {
   const props = data.llama_8001.props || {};
   const met = data.llama_8001.metrics || {};
   document.getElementById('metric-model').textContent = props.alias || (data.llama_8001.status === 'up' ? 'loading...' : '—');
-  const ctxK = props.n_ctx ? (props.n_ctx / 1024) + 'K' : '';
-  document.getElementById('metric-model-sub').textContent = props.n_ctx ? ctxK + ' ctx · ' + (props.engine === 'vllm' ? 'vLLM' : (props.total_slots || 1) + ' slot') : (data.llama_8001.status === 'up' ? 'fetching...' : '—');
   // workerPort already carries its ':' prefix — adding another produced "llama.cpp ::8001",
   // which then rendered on every serving GPU card as "llama-server ::8001".
   window._workerLabel = (props.engine === 'vllm' ? 'vLLM' : 'llama.cpp') + ' ' + workerPort;
@@ -1404,36 +1475,43 @@ function updateMetrics(data) {
   const der = data.llama_8001.derived || {};
   const promptTps = der.prompt_tps || met['llamacpp:prompt_tokens_seconds'] || 0;
   const decodeTps = der.decode_tps || met['llamacpp:predicted_tokens_seconds'] || 0;
-  const promptTotal = met['llamacpp:prompt_tokens_total'] || met['vllm:prompt_tokens_total'] || 0;
   const decodeTotal = met['llamacpp:tokens_predicted_total'] || met['vllm:generation_tokens_total'] || 0;
   const reqs = der.requests_processing || met['llamacpp:requests_processing'] || 0;
   const waiting = der.requests_waiting || 0;
-
-  // Seat concurrency and KV fill on the model tile. The fill was collected and rendered for
-  // SECONDARY cards but never for the primary, even though the README advertised it — so the
-  // most important panel showed strictly less than the ones below it.
-  const msub = document.getElementById('metric-model-sub');
-  if (msub && props.n_ctx) {
-    msub.textContent += ' · ' + reqs + ' active seat' + (reqs === 1 ? '' : 's');
-    // Queue depth is the saturation signal: seats full is fine, seats full WITH a queue behind
-    // them is the engine being asked for more than it can serve. Only shown when non-zero.
-    if (waiting > 0) msub.textContent += ' · ' + waiting + ' queued';
-    const primaryFill = der.ctx_fill_pct;
-    if (typeof primaryFill === 'number' && isFinite(primaryFill)) {
-      msub.textContent += ' · ' + primaryFill.toFixed(0) + '% full';
-    }
-  }
+  const specPct = der.spec_accept_pct;
+  const slots = props.total_slots || 1;
+  const ctxK = props.n_ctx ? (props.n_ctx / 1024) + 'K' : '';
 
   // A held rate is not a current rate. When the backend reports an age, say so on the tile —
   // "· 4s ago" — so an idle box never reads as one that is generating right now.
   const heldNote = (age) => (age ? ' · ' + fmtAge(age) + ' ago' : '');
   document.getElementById('metric-prompt-tps').textContent = fmtNum(promptTps, 1);
-  document.getElementById('metric-prompt-sub').textContent = 'prompt tokens: ' + Number(promptTotal).toLocaleString()
-    + ' · reqs: ' + reqs + heldNote(der.prompt_tps_age_s);
   document.getElementById('metric-decode-tps').textContent = fmtNum(decodeTps, 1);
-  const specPct = der.spec_accept_pct;
-  document.getElementById('metric-decode-sub').textContent = 'predicted tokens: ' + Number(decodeTotal).toLocaleString()
-    + (specPct != null ? ' · MTP accept: ' + fmtNum(specPct, 0) + '%' : '')
+
+  // Uniform stat cells — one labeled cell per metric, no concatenated sub-line.
+  const ctxFill = der.ctx_fill_pct;
+  const hasFill = typeof ctxFill === 'number' && isFinite(ctxFill);
+  setEl('mh-ctx', el => el.textContent = hasFill ? ctxFill.toFixed(0) + '%' : (ctxK || '—'));
+  setEl('mh-ctx-fill', el => {
+    const p = hasFill ? ctxFill : 0;
+    el.style.width = Math.min(p, 100) + '%';
+    el.className = 'bar-fill ' + (p > 85 ? 'red' : p > 60 ? 'amber' : 'cyan');
+  });
+  setEl('mh-seats', el => el.textContent = reqs + ' / ' + slots);
+  // Queue depth is the saturation signal: seats full is fine, seats full WITH a queue behind
+  // them is the engine being asked for more than it can serve.
+  setEl('mh-queue', el => {
+    el.textContent = String(waiting);
+    el.style.color = waiting > 0 ? 'var(--amber)' : 'var(--accent)';
+  });
+
+  // Footnote — engine · ctx · slot · MTP · cumulative decode tokens · held-rate age
+  document.getElementById('metric-model-sub').textContent =
+    (props.engine === 'vllm' ? 'vLLM' : 'llama.cpp')
+    + (ctxK ? ' · ' + ctxK + ' ctx' : '')
+    + (props.n_ctx ? ' · ' + slots + ' slot' : '')
+    + (specPct != null ? ' · MTP ' + fmtNum(specPct, 0) + '%' : '')
+    + (decodeTotal ? ' · Σ ' + Number(decodeTotal).toLocaleString() + ' dec' : '')
     + heldNote(der.decode_tps_age_s);
   updateLatencyCard(der, props, data.llama_8001.status);
 
@@ -1500,6 +1578,30 @@ function updateMetrics(data) {
       el.innerHTML = rows.join('<br>') || 'no LAN activity';
     });
   }
+
+  // System vitals — RAM sparkline + load average (already in the payload; was collected but never shown)
+  const sys = data.system || {};
+  if (sys.ram_total_mb) {
+    history.ramUsed.push(sys.ram_used_mb);
+    if (history.ramUsed.length > MAX_HISTORY) history.ramUsed.shift();
+    const ramPct = (sys.ram_used_mb / sys.ram_total_mb) * 100;
+    // CPU: null on the first poll (no previous /proc/stat sample to delta against)
+    const cpuPct = (sys.cpu_pct === null || sys.cpu_pct === undefined) ? null : Number(sys.cpu_pct);
+    setEl('sys-cpu-value', el => el.textContent = cpuPct === null ? '—' : cpuPct.toFixed(1) + '%');
+    setEl('sys-cpu-fill', el => {
+      el.style.width = cpuPct === null ? '0%' : Math.min(cpuPct, 100) + '%';
+      el.className = 'bar-fill ' + (cpuPct === null ? 'cyan' : cpuPct > 90 ? 'red' : cpuPct > 75 ? 'amber' : 'cyan');
+    });
+    const fmtMb = mb => mb >= 1024 ? fmtNum(mb / 1024, 2) + ' GB' : fmtNum(mb, 0) + ' MB';
+    setEl('sys-ram-value', el => el.textContent = fmtMb(sys.ram_used_mb) + ' / ' + fmtMb(sys.ram_total_mb) + ' (' + ramPct.toFixed(0) + '%)');
+    setEl('sys-ram-fill', el => {
+      el.style.width = Math.min(ramPct, 100) + '%';
+      el.className = 'bar-fill ' + (ramPct > 90 ? 'red' : ramPct > 75 ? 'amber' : 'cyan');
+    });
+    setEl('sys-load', el => el.textContent = 'load 1/5/15: ' + fmtNum(sys.load_1min, 2) + ' / ' + fmtNum(sys.load_5min, 2) + ' / ' + fmtNum(sys.load_15min, 2));
+    setEl('sys-summary', el => el.textContent = ramPct.toFixed(0) + '% used');
+  }
+  drawSparkline(document.getElementById('spark-ram'), history.ramUsed, '#4cc9f0', { max: sys.ram_total_mb || undefined });
 
   // GPU cards — size the grid to the payload before filling it
   syncGpuCards(data.gpus.length);
@@ -1590,9 +1692,6 @@ function updateMetrics(data) {
     setDot('dot-8188', data.services.comfyui_8188 && data.services.comfyui_8188.status === 'up');
   }
 
-  // Secondary servers
-  renderSecondaries(data.secondaries);
-
   // Warn if power is high
   const warn = document.getElementById('metrics-warn');
   // Percentage of each card's OWN enforced limit — a fixed 180W threshold was meaningless on
@@ -1607,84 +1706,6 @@ function updateMetrics(data) {
     warn.innerHTML = msg + 'Check nvidia-smi for details.';
   } else {
     warn.style.display = 'none';
-  }
-}
-
-// ---- Secondary CPU llama-server cards (optional) ----
-// EDIT these to match your own secondary servers (must mirror SECONDARY_SERVERS in
-// fleet-metrics.py). Each shows one card; a server that isn't up simply renders as 'down'.
-const SECONDARY_META = [
-  { name: 'cpu-worker-1', port: 9093, model: 'example CPU llama-server', role: 'secondary' },
-  { name: 'cpu-worker-2', port: 9095, model: 'example CPU llama-server', role: 'secondary' },
-];
-
-function fmtK(n) {
-  if (!n) return '0';
-  if (n >= 1024) return (n / 1024).toFixed(n >= 10240 ? 0 : 1) + 'K';
-  return String(n);
-}
-
-function renderSecondaries(secondaries) {
-  const container = document.getElementById('secondary-cards');
-  if (!container) return;
-  // Map live payload by name; fall back to static meta (older fleet-metrics has no .secondaries).
-  const byName = {};
-  (secondaries || []).forEach(d => { byName[d.name] = d; });
-
-  let upCount = 0;
-  container.innerHTML = '';
-  SECONDARY_META.forEach((meta, i) => {
-    const live = byName[meta.name];
-    const up = live && live.status === 'up';
-    if (up) upCount++;
-    const d = (live && live.derived) || {};
-    const pp = d.prompt_tps || 0, tg = d.decode_tps || 0;
-    const nCtx = d.n_ctx || 0, used = d.ctx_used_tokens || 0;
-    const fill = d.ctx_fill_pct || 0;
-    const loras = (live && live.loras) || [];
-    const fillClass = fill > 85 ? 'red' : fill > 60 ? 'amber' : 'cyan';
-    // Prefer the live model name (self-corrects when a sleeve is swapped); strip .gguf.
-    const liveAlias = (up && live.props && live.props.alias) ? live.props.alias.replace(/\.gguf$/, '') : '';
-    const modelLabel = liveAlias || meta.model;
-    // Requests accepted but waiting for a free slot. A secondary at 100% ctx fill with nothing
-    // queued is healthy; the same card with a queue behind it is the one to go look at.
-    const queued = d.requests_waiting || 0;
-    const queuedBadge = queued > 0
-      ? ` · <span style="color:#fbbf24;">${queued} queued</span>`
-      : '';
-
-    // l.name / l.scale come straight from the secondary server's /lora-adapters response.
-    // Escape both — and note the title="" is an ATTRIBUTE sink, so it needs escaping too.
-    const lorasHtml = loras.length
-      ? loras.map(l => `<span class="lora-badge" title="scale ${escHtml(l.scale)}">${escHtml(l.name)}${l.scale && l.scale !== 1 ? ' ×' + escHtml(l.scale) : ''}</span>`).join('')
-      : '<span class="lora-badge none">no LoRAs applied</span>';
-
-    const card = document.createElement('div');
-    card.className = 'metric-card secondary-card' + (up ? '' : ' is-down');
-    card.innerHTML = `
-      <div class="dr-head">
-        <span class="status-dot ${up ? 'up' : 'down'}"></span>
-        <span class="dr-name">${escHtml(meta.name)}</span>
-        <span class="metric-unit" style="margin-left:auto;">:${escHtml(meta.port)} · ${escHtml(meta.role)}</span>
-      </div>
-      <div class="dr-model">${escHtml(modelLabel)}${up ? queuedBadge : ' · <span style="color:var(--amber)">DOWN</span>'}</div>
-      <div class="dr-tps">
-        <div><div class="v ${up ? '' : 'dim'}">${up ? fmtNum(pp, 1) : '—'}</div><div class="l">PP tok/s</div></div>
-        <div><div class="v ${up ? '' : 'dim'}">${up ? fmtNum(tg, 1) : '—'}</div><div class="l">TG tok/s</div></div>
-        <div><div class="v ${up ? '' : 'dim'}">${up && nCtx ? fmtK(nCtx) : '—'}</div><div class="l">ctx len</div></div>
-      </div>
-      <div class="bar-row" style="margin-top:0;"><span class="bar-label">ctx fill</span><span class="bar-value">${up ? fill.toFixed(0) + '% · ' + fmtK(used) + ' / ' + fmtK(nCtx) : '—'}</span></div>
-      <div class="bar-track"><div class="bar-fill ${up ? fillClass : 'muted'}" style="width:${up ? Math.min(fill, 100) : 0}%"></div></div>
-      <div class="dr-loras">${lorasHtml}</div>
-    `;
-    container.appendChild(card);
-  });
-
-  const summary = document.getElementById('secondaries-summary');
-  if (summary) {
-    summary.textContent = (secondaries === undefined)
-      ? 'restart fleet-metrics.py for live data'
-      : upCount + ' / ' + SECONDARY_META.length + ' up';
   }
 }
 
