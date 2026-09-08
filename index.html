@@ -133,6 +133,15 @@ aside.nav .nav-model.on { color: var(--ink); }
 aside.nav .nav-model.on .nm-dot { background: var(--ok); box-shadow: 0 0 6px var(--ok-glow); }
 aside.nav .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 aside.nav .nav-model .nm-port { margin-left: auto; color: var(--ink-mute); }
+aside.nav .nm-btn {
+  font-family: var(--mono); font-size: 9px;
+  padding: 1px 5px;
+  cursor: pointer;
+  background: var(--bg-elev); color: var(--ink-dim);
+  border: 1px solid var(--line); border-radius: 3px;
+}
+aside.nav .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
+aside.nav .nm-btn:disabled { opacity: 0.5; cursor: default; }
 aside.nav .legend {
   margin-top: 24px;
   padding-top: 16px;
@@ -1963,12 +1972,41 @@ function renderNavModels(data) {
     box.innerHTML = '<li class="nav-model">no router</li>';
     return;
   }
-  box.innerHTML = models.map(m =>
-    `<li class="nav-model${m.status === 'loaded' ? ' on' : ''}">` +
-    `<span class="nm-dot"></span>` +
-    `<span class="nm-name" title="${escHtml(m.id)}">${escHtml(m.id)}</span>` +
-    (m.port ? `<span class="nm-port">:${m.port}</span>` : '') +
-    `</li>`).join('');
+  box.innerHTML = models.map(m => {
+    const on = m.status === 'loaded';
+    return `<li class="nav-model${on ? ' on' : ''}" data-model="${escHtml(m.id)}">` +
+      `<span class="nm-dot"></span>` +
+      `<span class="nm-name" title="${escHtml(m.id)}">${escHtml(m.id)}</span>` +
+      (m.port ? `<span class="nm-port">:${m.port}</span>` : '') +
+      `<button class="nm-btn" data-action="${on ? 'unload' : 'load'}">${on ? 'UNLOAD' : 'LOAD'}</button>` +
+      `</li>`;
+  }).join('');
+}
+// One delegated handler on the box — the roster's innerHTML is rebuilt every 2s poll,
+// so per-row listeners would be rebuilt with it; the box element itself is never replaced.
+const nmBox = document.getElementById('nav-models');
+if (nmBox) nmBox.onclick = e => {
+  const btn = e.target.closest('.nm-btn');
+  if (!btn) return;
+  modelAction(btn, btn.closest('li').dataset.model, btn.dataset.action);
+};
+async function modelAction(btn, name, action) {
+  // Unload kills active context — confirm that one only. Load is cheap to retry.
+  if (action === 'unload' && !confirm(`Unload ${name}?\nActive context is lost.`)) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const r = await fetch('/api/models/' + action, { method: 'POST', body: JSON.stringify({ model: name }) });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok) console.error('model ' + action + ' failed:', r.status, out);
+    btn.textContent = r.ok ? label : 'ERR';
+  } catch (e) {
+    console.error(e);
+    btn.textContent = 'ERR';
+  }
+  // The 2s poll re-renders the roster and resets the button; this only covers the gap.
+  setTimeout(() => { if (document.contains(btn)) { btn.disabled = false; btn.textContent = label; } }, 4000);
 }
 
 </script>

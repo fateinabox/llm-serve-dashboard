@@ -1464,6 +1464,99 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"404 - use / or /metrics")
 
+    def do_POST(self):
+        # Same cross-origin refusal as do_GET — and here it matters more: the routes
+        # below are ACTIONS (load/unload a model), not telemetry.
+        origin = self.headers.get("Origin")
+        if (origin and not cors_origin(origin)) or \
+           self.headers.get("Sec-Fetch-Site") == "cross-site":
+            body = b"403 - cross-origin request refused\n"
+            self.send_response(403)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        path = self.path.split('?', 1)[0]
+        if path in ("/api/models/load", "/api/models/unload"):
+            self._router_model_action(path == "/api/models/load")
+        else:
+            self.send_response(404)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"404 - use /api/models/load or /api/models/unload")
+
+    def _router_model_action(self, loading):
+        """Proxy POST /models/load|unload to the models-dir router. The sidebar roster is
+        the allowlist: a name the router does not know is refused here, so the router's
+        admin API is only ever reached with a name it owns. The router's own JSON is
+        passed through (success:true or its error)."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            name = json.loads(self.rfile.read(length) or b'{}').get("model")
+        except Exception:
+            name = None
+        if not isinstance(name, str) or not name:
+            body = json.dumps({"error": 'body must be {"model": "<name>"}'}).encode()
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        _, router_port = resolve_worker_port()
+        if not router_port:
+            body = json.dumps({"error": "no router found — nothing to load/unload"}).encode()
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        entry = next((m for m in fetch_router_models(router_port) if m["id"] == name), None)
+        if entry is None:
+            body = json.dumps({"error": f"model not in router roster: {name}"}).encode()
+            self.send_response(404)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        # Cheap pre-checks for readable errors; the router re-validates and is final.
+        if (loading and entry["status"] == "loaded") or \
+           (not loading and entry["status"] == "unloaded"):
+            err = "model already loaded" if loading else "model not loaded"
+            body = json.dumps({"error": err}).encode()
+            self.send_response(409)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        action = "load" if loading else "unload"
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{router_port}/models/{action}",
+                data=json.dumps({"model": name}).encode(),
+                headers={"Content-Type": "application/json", "User-Agent": "curl"},
+                method="POST")
+            resp = scrape_open(req, timeout=10)
+            out = json.loads(read_capped(resp))
+        except Exception as e:
+            out = {"error": str(e)}
+        code = 200 if isinstance(out, dict) and out.get("success") else 502
+        body = json.dumps(out).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self._send_cors()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _read_thoughts(self, max_bytes=6000):
         """Tail of an optional Thought-Tap log — live reasoning_content (CoT) captured by a
         proxy in front of the worker. Set THOUGHT_LOG=/path/to/thinking.log to enable it;

@@ -51,7 +51,9 @@ chromium --headless --window-size=2880,1640 --virtual-time-budget=9000 \
   `/metrics` for other consumers, but the page has no panel for them.
 - **Model roster** — the sidebar lists every model the models-dir router knows, live: loaded
   models get a green dot and their serving port; unloaded ones sit dim. Sourced from the
-  router's `/v1/models` on the same 2-second poll — no registry to edit.
+  router's `/v1/models` on the same 2-second poll — no registry to edit. Each row carries a
+  **LOAD**/**UNLOAD** button (proxied to the router; unload confirms first — it kills active
+  context).
 - **Reasoning tap (optional)** — off by default. Point `THOUGHT_LOG` at a log of streamed
   `reasoning_content` and the panel shows its live tail. Separate per-request CoT panels require a
   proxy serving structured streams at `/thoughts` on `:8090`; that proxy is **not** included here.
@@ -117,8 +119,11 @@ cards render with your names.
 
 - `GET /` — the dashboard page itself, so it loads same-origin.
 - `GET /metrics` — the full JSON blob the dashboard renders (GPUs, worker, secondaries, system).
-- `GET /models` — the model-library registry.
+- `GET /models` — the optional static model registry (the page no longer fetches it).
 - `GET /health` — liveness.
+- `POST /api/models/load` / `POST /api/models/unload` — body `{"model": "<name>"}`; the sidebar's
+  roster buttons proxy these to the router's admin API. The roster is the allowlist: a name the
+  router does not know is refused locally. The router's JSON is passed through.
 
 llama.cpp publishes ready-made rate gauges (`prompt_tokens_seconds`, `predicted_tokens_seconds`)
 alongside its cumulative counters, and those gauges are read directly. vLLM has no such gauges, so
