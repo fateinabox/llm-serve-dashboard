@@ -1045,11 +1045,6 @@ body.view-amd .right-rail .net-grid { grid-template-columns: 1fr; }
       <div class="metric-value"><span id="metric-ttft">—</span><span class="metric-unit">ms TTFT</span></div>
       <div class="metric-sub" id="metric-lat-sub">waiting for first poll…</div>
     </div>
-    <div class="metric-card">
-      <div class="metric-label">Total GPU power draw</div>
-      <div class="metric-value"><span id="metric-power">—</span><span class="metric-unit">W / <span id="metric-power-cap">—</span>W</span></div>
-      <div class="metric-sub" id="metric-power-sub">waiting for first poll…</div>
-    </div>
   </div>
 
   <!-- AMD hero view (view=amd): one panel per compute card, rendered by renderHero() -->
@@ -1095,6 +1090,19 @@ body.view-amd .right-rail .net-grid { grid-template-columns: 1fr; }
       <div class="bar-row" style="margin-top:10px;"><span class="bar-label">CPU</span><span class="bar-value" id="sys-cpu-value">—</span></div>
       <div class="bar-track"><div class="bar-fill cyan" id="sys-cpu-fill" style="width:0%;"></div></div>
       <div class="metric-sub" id="sys-load" style="margin-top:12px; line-height:1.7;">—</div>
+    </div>
+  </div>
+
+  <!-- Power — total draw across all cards + enforced cap, with a history graph -->
+  <div class="sparkline-label" style="margin-top:24px;"><span>POWER — total draw</span><span id="power-summary" style="color:var(--ink-dim);">—</span></div>
+  <div class="metrics-grid sys-grid" style="margin-top:8px;">
+    <div class="metric-card">
+      <div class="sparkline-wrap"><canvas id="spark-power" width="600" height="60"></canvas></div>
+    </div>
+    <div class="metric-card">
+      <div class="bar-row"><span class="bar-label">POWER</span><span class="bar-value" id="power-value">—</span></div>
+      <div class="bar-track"><div class="bar-fill amber" id="power-fill" style="width:0%;"></div></div>
+      <div class="metric-sub" id="power-sub" style="margin-top:12px;">—</div>
     </div>
   </div>
 
@@ -1157,6 +1165,7 @@ const history = {
   netRx: [],
   netTx: [],
   ramUsed: [],
+  powerDraw: [],
 };
 let netSession = { startRx: null, peakRx: 0 };  // page-load baseline for the Σ-downloaded counter
 const MAX_HISTORY = 120; // 4 minutes at 2s intervals
@@ -1515,19 +1524,27 @@ function updateMetrics(data) {
     + heldNote(der.decode_tps_age_s);
   updateLatencyCard(der, props, data.llama_8001.status);
 
-  // Total power
-  const totalPower = data.gpus.reduce((s, g) => s + g.power_w, 0);
-  // One source of truth for the cap: the enforced per-card power.limit the backend already
+  // Total power — summed across ALL cards (the display iGPU draws ~0, so this is the true system
+  // draw). One source of truth for the cap: the enforced per-card power.limit the backend already
   // queries. The headline denominator used to be hardcoded to 1200W while this same sum rendered
-  // the correct 800W directly beneath it — the two disagreed in the README's own screenshot.
+  // the correct 800W directly beneath it — the two disagreed.
+  const totalPower = data.gpus.reduce((s, g) => s + g.power_w, 0);
   const powerCap = data.gpus.reduce((s, g) => s + (g.power_limit_w || 0), 0);
-  // With no GPU data these sums are 0, and "0 W / 0 W" would read as a measurement rather than
-  // an absence. Say what is actually true.
-  document.getElementById('metric-power').textContent = noGpus ? '—' : fmtNum(totalPower, 0);
-  setEl('metric-power-cap', el => el.textContent = noGpus ? '—' : fmtNum(powerCap, 0));
-  document.getElementById('metric-power-sub').textContent = noGpus
+  const powerPct = powerCap > 0 ? (totalPower / powerCap) * 100 : 0;
+  history.powerDraw.push(totalPower);
+  if (history.powerDraw.length > MAX_HISTORY) history.powerDraw.shift();
+  // With no GPU data these sums are 0, and "0 / 0 W" would read as a measurement rather than an
+  // absence. Say what is actually true.
+  setEl('power-value', el => el.textContent = noGpus ? '—' : fmtNum(totalPower, 0) + ' / ' + fmtNum(powerCap, 0) + ' W');
+  setEl('power-fill', el => {
+    el.style.width = noGpus ? '0%' : Math.min(powerPct, 100) + '%';
+    el.className = 'bar-fill ' + (powerPct > 90 ? 'red' : powerPct > 75 ? 'amber' : 'green');
+  });
+  setEl('power-sub', el => el.textContent = noGpus
     ? 'no GPU data — is nvidia-smi present?'
-    : data.gpus.length + ' GPUs · ' + fmtNum(powerCap, 0) + 'W cap';
+    : data.gpus.length + ' cards · ' + fmtNum(powerCap, 0) + 'W cap');
+  setEl('power-summary', el => el.textContent = noGpus ? '—' : fmtNum(totalPower, 0) + 'W');
+  drawSparkline(document.getElementById('spark-power'), history.powerDraw, '#f0b429', { max: powerCap || undefined });
 
   // Network traffic (fleet-metrics get_network: summed physical NICs, busiest first)
   const net = data.network || { ifaces: [], rx_bps: 0, tx_bps: 0 };
@@ -1603,17 +1620,23 @@ function updateMetrics(data) {
   }
   drawSparkline(document.getElementById('spark-ram'), history.ramUsed, '#4cc9f0', { max: sys.ram_total_mb || undefined });
 
-  // GPU cards — size the grid to the payload before filling it
-  syncGpuCards(data.gpus.length);
-  data.gpus.forEach((gpu, i) => updateGpuCard(gpu, i));
+  // GPU cards — size the grid to the payload before filling it.
+  // Non-serving cards (display iGPUs: compute_card === false with no tenant) are hidden —
+  // they read as noise next to the card that is actually serving. A card that IS serving
+  // (has a tenant) always shows, even if compute_card is false, so a worker never vanishes.
+  // NVIDIA cards are always compute_card === true, so this only trims AMD display iGPUs.
+  const servingGpus = data.gpus.filter(g => g.compute_card !== false || (g.tenant && g.tenant.length));
+  const shownGpus = (servingGpus.length === 0 && data.gpus.length > 0) ? data.gpus : servingGpus;
+  syncGpuCards(shownGpus.length);
+  shownGpus.forEach((gpu, i) => updateGpuCard(gpu, i));
 
   // History
-  // Size the history to the actual GPU count. It used to be a fixed four arrays, so a 1-GPU box
+  // Size the history to the SHOWN GPU count. It used to be a fixed four arrays, so a 1-GPU box
   // drew three empty sparklines and an 8-GPU box silently dropped half its cards from the chart
   // while their power still counted toward the total.
-  while (history.gpuUtil.length < data.gpus.length) history.gpuUtil.push([]);
-  history.gpuUtil.length = data.gpus.length;
-  data.gpus.forEach((gpu, i) => {
+  while (history.gpuUtil.length < shownGpus.length) history.gpuUtil.push([]);
+  history.gpuUtil.length = shownGpus.length;
+  shownGpus.forEach((gpu, i) => {
     history.gpuUtil[i].push(gpu.gpu_util);
     if (history.gpuUtil[i].length > MAX_HISTORY) history.gpuUtil[i].shift();
   });
@@ -1630,7 +1653,7 @@ function updateMetrics(data) {
   const observedMaxUtil = allUtil.length ? Math.max(...allUtil) : 0;
   const utilScale = 100;
   setEl('gpu-util-range', el => el.textContent = 'max: ' + Math.round(observedMaxUtil) + '%');
-  setEl('gpu-util-count', el => el.textContent = noGpus ? 'unavailable' : data.gpus.length + (data.gpus.length === 1 ? ' GPU' : ' GPUs'));
+  setEl('gpu-util-count', el => el.textContent = noGpus ? 'unavailable' : shownGpus.length + (shownGpus.length === 1 ? ' GPU' : ' GPUs'));
   // Draw one sparkline per GPU, stacked on one canvas
   const sparkGpu = document.getElementById('spark-gpu-util');
   const ctxGpu = sparkGpu.getContext('2d');
@@ -1851,16 +1874,16 @@ function renderHero(data) {
     el.innerHTML = '<div class="hero-empty">NO GPU DETECTED — nvidia-smi and amdgpu sysfs both empty</div>';
     return;
   }
-  const totalW = gpus.reduce((s, g) => s + (g.power_w || 0), 0);
-  const totalCap = gpus.reduce((s, g) => s + (g.power_limit_w || 0), 0);
   const workerPort = data.worker_port ? (':' + data.worker_port) : ':8001';
   el.insertAdjacentHTML('beforeend',
-    `<div class="hero-strip"><span>Σ POWER ${fmtNum(totalW, 0)}W / ${fmtNum(totalCap, 0)}W</span>` +
-    `<span>${gpus.length} card${gpus.length === 1 ? '' : 's'}</span></div>`);
+    `<div class="hero-strip"><span>${gpus.length} card${gpus.length === 1 ? '' : 's'}</span></div>`);
   const tenantCard = gpus.find(g => g.tenant);
   for (const g of gpus) {
-    if (g.compute_card === false) el.insertAdjacentHTML('beforeend', heroStripHtml(g));
-    else el.insertAdjacentHTML('beforeend', heroPanelHtml(g, g === tenantCard ? data.llama_8001 : null, workerPort));
+    // Hide non-serving display iGPUs (compute_card === false, no tenant) — they read as noise.
+    // A card that IS serving always shows, even if compute_card is false. NVIDIA cards are
+    // always compute_card === true, so this only trims AMD display iGPUs.
+    if (g.compute_card === false && !(g.tenant && g.tenant.length)) continue;
+    el.insertAdjacentHTML('beforeend', heroPanelHtml(g, g === tenantCard ? data.llama_8001 : null, workerPort));
   }
 }
 function heroPanelHtml(g, worker, port) {
@@ -1910,12 +1933,6 @@ function heroWorkerHtml(w, port) {
     `<div>TTFT ${der.ttft_ms ? der.ttft_ms + 'ms' : '—'} · ITL ${der.itl_ms ? der.itl_ms + 'ms' : '—'}</div>` +
     `</div>`;
 }
-function heroStripHtml(g) {
-  return `<div class="hero-strip"><span>${escHtml(g.name || 'GPU ' + g.index)}</span><span>display</span>` +
-    `<span>${(g.gpu_util || 0) > 5 ? 'busy' : 'idle'}</span>` +
-    `<span>${(g.mem_used_mib / 1024).toFixed(1)} / ${(g.mem_total_mib / 1024).toFixed(1)} GiB</span><span>no tenant</span></div>`;
-}
-
 async function poll() {
   try {
     const resp = await fetch(METRICS_URL);
