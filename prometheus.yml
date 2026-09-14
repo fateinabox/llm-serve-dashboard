@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # llama.cpp worker — on the host loopback (both containers in host mode)
+  - job_name: llama-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:35443"]
+        labels:
+          role: worker
+          model: "Qwen3.8-27B-GSQ-RCO-IQ3_XXS-mtp"
+
+  # Prometheus itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]

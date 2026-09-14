@@ -140,6 +140,20 @@ aside.nav .nm-btn {
   background: var(--bg-elev); color: var(--ink-dim);
   border: 1px solid var(--line); border-radius: 3px;
 }
+/* Collapsible 'Other models' group — read-only ggufs not covered by a preset. */
+aside.nav .nm-group {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-dim); cursor: pointer;
+  user-select: none;
+}
+aside.nav .nm-group .nm-caret { width: 0; height: 0; border-left: 4px solid var(--ink-mute); border-top: 3px solid transparent; border-bottom: 3px solid transparent; transition: transform .12s; }
+aside.nav .nm-group.open .nm-caret { transform: rotate(90deg); }
+aside.nav .nm-group .nm-count { margin-left: auto; color: var(--ink-mute); }
+aside.nav .nm-other { display: none; }
+aside.nav .nm-other.open { display: block; }
+aside.nav .nm-other .nav-model { padding-left: 20px; }
 aside.nav .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
 aside.nav .nm-btn:disabled { opacity: 0.5; cursor: default; }
 aside.nav .legend {
@@ -2004,32 +2018,71 @@ function escHtml(s) {
 }
 // Presence check: null/undefined/'' = absent → show '—'. A real 0 or false IS data.
 const has = v => v !== null && v !== undefined && v !== '';
+// Live status map from the router: id -> {status, port}. Presets are actionable
+// (dot + LOAD/UNLOAD); non-preset ggufs are read-only and collapsed under 'OTHER'.
+let _routerStatus = {};
 function renderNavModels(data) {
   const box = document.getElementById('nav-models');
   if (!box) return;
-  const models = (data && Array.isArray(data.router_models)) ? data.router_models : [];
-  if (!models.length) {
-    box.innerHTML = '<li class="nav-model">no router</li>';
-    return;
-  }
-  box.innerHTML = models.map(m => {
-    const on = m.status === 'loaded';
-    return `<li class="nav-model${on ? ' on' : ''}" data-model="${escHtml(m.id)}">` +
+  const routerModels = (data && Array.isArray(data.router_models)) ? data.router_models : [];
+  _routerStatus = {};
+  for (const m of routerModels) _routerStatus[m.id] = m;
+
+  const models = (data && data.models) || {};
+  const presets = Array.isArray(models.presets) ? models.presets : [];
+  const others = Array.isArray(models.other_models) ? models.other_models : [];
+
+  const row = (id, extra = '') => {
+    const st = _routerStatus[id];
+    const on = st && st.status === 'loaded';
+    return `<li class="nav-model${on ? ' on' : ''}" data-model="${escHtml(id)}">` +
       `<span class="nm-dot"></span>` +
-      `<span class="nm-name" title="${escHtml(m.id)}">${escHtml(m.id)}</span>` +
-      (m.port ? `<span class="nm-port">:${m.port}</span>` : '') +
-      `<button class="nm-btn" data-action="${on ? 'unload' : 'load'}">${on ? 'UNLOAD' : 'LOAD'}</button>` +
+      `<span class="nm-name" title="${escHtml(id)}">${escHtml(id)}</span>` +
+      (st && st.port ? `<span class="nm-port">:${st.port}</span>` : '') +
+      extra +
       `</li>`;
-  }).join('');
+  };
+  const loadBtn = id => {
+    const st = _routerStatus[id];
+    const on = st && st.status === 'loaded';
+    return `<button class="nm-btn" data-action="${on ? 'unload' : 'load'}">${on ? 'UNLOAD' : 'LOAD'}</button>`;
+  };
+
+  const parts = [];
+  if (presets.length) {
+    parts.push(presets.map(p => row(p.id, loadBtn(p.id))).join(''));
+  } else {
+    parts.push('<li class="nav-model dim">no presets</li>');
+  }
+  if (others.length) {
+    parts.push(`<li class="nm-group" id="nm-other-toggle">` +
+      `<span class="nm-caret"></span>` +
+      `<span class="nm-name">OTHER MODELS</span>` +
+      `<span class="nm-count">${others.length}</span>` +
+      `</li>` +
+      `<ul class="nm-other" id="nm-other-list">` +
+        others.map(o => row(o.id)).join('') +
+      `</ul>`);
+  }
+  box.innerHTML = parts.join('');
 }
-// One delegated handler on the box — the roster's innerHTML is rebuilt every 2s poll,
-// so per-row listeners would be rebuilt with it; the box element itself is never replaced.
+// Collapsible 'Other models' group — state lives in the element the 2s poll rebuilds,
+// so it resets to collapsed each tick. Toggling is a one-shot delegated click on the
+// group header row (the list rows have no .nm-btn, so they never hit modelAction).
 const nmBox = document.getElementById('nav-models');
 if (nmBox) nmBox.onclick = e => {
+  const grp = e.target.closest('.nm-group');
+  if (grp) {
+    grp.classList.toggle('open');
+    const list = document.getElementById('nm-other-list');
+    if (list) list.classList.toggle('open');
+    return;
+  }
   const btn = e.target.closest('.nm-btn');
   if (!btn) return;
   modelAction(btn, btn.closest('li').dataset.model, btn.dataset.action);
 };
+
 async function modelAction(btn, name, action) {
   // Unload kills active context — confirm that one only. Load is cheap to retry.
   if (action === 'unload' && !confirm(`Unload ${name}?\nActive context is lost.`)) return;

@@ -1,0 +1,9 @@
+apiVersion: 1
+providers:
+  - name: LLM Serve
+    orgId: 1
+    folder: LLM Serve
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFiles: false

@@ -1,0 +1,1203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LLM Serve — Sidecar v2</title>
+<style>
+:root {
+  --bg: #0f1114;
+  --bg-elev: #161a1f;
+  --bg-elev-2: #1c2128;
+  --line: #252b33;
+  --line-hi: #333c46;
+  --ink: #d1d8e0;
+  --ink-dim: #8899aa;
+  --ink-mute: #5a6a7a;
+  --accent: #8899aa;
+  --accent-dim: #778899;
+  --accent-glow: rgba(136,153,170,0.15);
+  --ok: #8899aa;
+  --amber: #fbbf24;
+  --cyan: #4cc9f0;
+  --violet: #b48cf2;
+  --rose: #ff6b8a;
+  --red: #ef4444;
+}
+:root.theme-slate {
+  --bg: #0f1114;
+  --bg-elev: #161a1f;
+  --bg-elev-2: #1c2128;
+  --line: #252b33;
+  --line-hi: #333c46;
+  --ink: #d1d8e0;
+  --ink-dim: #8899aa;
+  --ink-mute: #5a6a7a;
+  --accent: #8899aa;
+  --accent-dim: #778899;
+  --accent-glow: rgba(136,153,170,0.15);
+  --ok: #8899aa;
+}
+:root.theme-amd {
+  --bg: #100c0c;
+  --bg-elev: #1a1212;
+  --bg-elev-2: #221818;
+  --line: #2e1e1e;
+  --line-hi: #3d2828;
+  --ink: #e8d8d8;
+  --ink-dim: #aa8888;
+  --ink-mute: #7a5a5a;
+  --accent: #ef4444;
+  --accent-dim: #dc2626;
+  --accent-glow: rgba(239,68,68,0.15);
+  --ok: #ef4444;
+}
+:root.theme-nvidia {
+  --bg: #0a0d0a;
+  --bg-elev: #111511;
+  --bg-elev-2: #161c16;
+  --line: #1e2a1e;
+  --line-hi: #2a3a2a;
+  --ink: #e8f5e8;
+  --ink-dim: #8a9a8a;
+  --ink-mute: #5a6a5a;
+  --accent: #24F094;
+  --accent-dim: #1ed890;
+  --accent-glow: rgba(36,240,148,0.15);
+  --ok: #24F094;
+}
+:root.theme-intel {
+  --bg: #0a0c10;
+  --bg-elev: #111520;
+  --bg-elev-2: #161c2a;
+  --line: #1e2a3a;
+  --line-hi: #2a3a4a;
+  --ink: #e0eaf5;
+  --ink-dim: #8a9aba;
+  --ink-mute: #5a6a8a;
+  --accent: #4cc9f0;
+  --accent-dim: #38bdf8;
+  --accent-glow: rgba(76,201,240,0.15);
+  --ok: #4cc9f0;
+}
+:root {
+  --ok: #24F094;
+  --amber: #fbbf24;
+  --cyan: #4cc9f0;
+  --violet: #b48cf2;
+  --rose: #ff6b8a;
+  --red: #ef4444;
+  --mono: "JetBrains Mono", ui-monospace, "Fira Code", Menlo, Consolas, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* === Layout === */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+.nav {
+  background: var(--bg-elev);
+  border-right: 1px solid var(--line);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.nav h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+}
+.nav .live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.nav .live-indicator .pulse {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.nav .group {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--ink-mute);
+  margin-top: 8px;
+}
+.nav ul { list-style: none; }
+.nav ul li {
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.nav ul li a { color: var(--ink-dim); }
+.nav ul li a:hover { color: var(--ink); }
+.nav ul li.active a { color: var(--accent); }
+.nav .nav-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+.nav .nav-model .nm-btn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.nav .nav-model .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
+.nav .nav-model .nm-btn:disabled { opacity: 0.4; cursor: default; }
+.nav .nav-model.dim { color: var(--ink-mute); }
+.nav .nav-model.loaded { color: var(--accent); }
+.nav .other-models { margin-top: 8px; }
+.nav .other-models .nm-toggle {
+  font-size: 11px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  padding: 2px 0;
+}
+.nav .other-models .nm-toggle:hover { color: var(--ink-dim); }
+.nav .other-models .nm-list { display: none; }
+.nav .other-models .nm-list.open { display: block; }
+.nav .other-models .nm-list .nav-model { padding-left: 12px; }
+
+/* === Main === */
+main {
+  padding: 24px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.main-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+.main-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.main-header .status {
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.main-header .grafana-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--accent);
+}
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+/* === Widget grid === */
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: min-content;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+}
+.widget {
+  display: flex;
+  flex-direction: column;
+}
+.widget-span {
+  grid-column: 1 / -1;
+}
+.widget {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.widget-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-elev-2);
+}
+.widget-header .w-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.widget-header .w-controls {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.widget-header .w-btn {
+  width: 24px; height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 12px;
+}
+.widget-header .w-btn:hover { color: var(--ink); border-color: var(--line-hi); }
+.widget-body {
+  padding: 14px;
+}
+.widget.collapsed .widget-body { display: none; }
+.widget.collapsed .widget-header { border-bottom: none; }
+.widget .widget-header { cursor: grab; }
+.widget .widget-header:active { cursor: grabbing; }
+.widget.dragging { opacity: 0.5; border-color: var(--accent); }
+.widget.drop-before { border-top: 3px solid var(--accent); }
+.widget.drop-after { border-bottom: 3px solid var(--accent); }
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.timeline-header .t-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.timeline-header .t-range {
+  font-size: 11px;
+  color: var(--ink-mute);
+  font-family: var(--mono);
+}
+.timeline-track {
+  position: relative;
+  height: 50px;
+  background: var(--bg-elev-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.timeline-track svg {
+  width: 100%;
+  height: 100%;
+}
+
+.alt-link {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--ink-mute);
+  text-decoration: none;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+.alt-link:hover { color: var(--accent); border-color: var(--accent); }
+.nav .docked-widget { cursor: default; }
+.nav .docked-widget .docked-header { cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); padding: 4px 0; }
+.nav .docked-widget .docked-header:hover { color: var(--accent); }
+.nav .docked-widget .docked-body { padding: 4px 0 8px 0; }
+.nav .docked-widget .docked-body ul { list-style: none; padding: 0; margin: 0; }
+.nav .docked-widget .docked-body .nav-model { padding: 3px 0; font-size: 12px; }
+.nav .docked-widget .docked-body .other-models { margin-top: 6px; }
+.nav .docked-widget .docked-body .nm-toggle { font-size: 11px; color: var(--ink-mute); cursor: default; }
+.nav .docked-widget .docked-body .nm-list { display: none; }
+.nav .docked-widget .docked-body .nm-list.open { display: block; }
+
+/* === Stat cards === */
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--ink);
+}
+.stat-unit {
+  font-size: 12px;
+  color: var(--ink-dim);
+  font-family: var(--mono);
+}
+.stat-sub {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
+
+/* === Bar === */
+.bar-track {
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.bar-fill.cyan { background: var(--cyan); }
+.bar-fill.amber { background: var(--amber); }
+.bar-fill.green { background: var(--ok); }
+.bar-fill.red { background: var(--red); }
+
+/* === KV panel === */
+.kv-list {
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.kv-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.kv-list li:last-child { border-bottom: none; }
+.kv-list .kv-name { color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kv-list .kv-size { color: var(--ink-dim); font-size: 11px; }
+.kv-list .kv-age { color: var(--ink-mute); font-size: 11px; }
+.kv-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.kv-actions button {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-elev-2);
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: var(--mono);
+}
+.kv-actions button:hover { color: var(--ink); border-color: var(--line-hi); }
+.kv-actions button:disabled { opacity: 0.4; cursor: default; }
+.kv-actions button.danger { color: var(--rose); }
+.kv-actions button.danger:hover { color: var(--ink); border-color: var(--rose); }
+.kv-status {
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin-top: 8px;
+  font-family: var(--mono);
+}
+
+/* === Model roster in widget === */
+.model-list {
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.model-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+.model-list li:last-child { border-bottom: none; }
+.model-list .m-name { color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-list .m-name.loaded { color: var(--accent); }
+.model-list .m-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.model-list .m-btn:hover { color: var(--ink); border-color: var(--line-hi); }
+.model-list .m-btn:disabled { opacity: 0.4; cursor: default; }
+.model-list .m-btn.danger { color: var(--rose); }
+
+/* === Responsive === */
+@media (max-width: 1024px) {
+  .widget-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .shell { grid-template-columns: 1fr; }
+  .nav {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .nav h1 { font-size: 14px; }
+  .nav ul { display: flex; gap: 12px; flex-wrap: wrap; }
+  .nav ul li { padding: 0; }
+  .widget-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="nav">
+  <div class="live-indicator"><span class="pulse"></span> LIVE FLEET</div>
+  <h1>LLM SERVE</h1>
+  <div class="group" id="docked-group" style="display:none">DOCKED</div>
+  <ul id="docked-widgets"></ul>
+</aside>
+
+<main>
+  <div class="main-header">
+    <h2>Sidecar</h2>
+    <span class="status" id="main-status">CONNECTING</span>
+    <button class="theme-toggle" id="theme-toggle" title="Cycle theme">◐</button>
+    <button class="theme-toggle" onclick="resetLayout()" title="Reset layout">↺</button>
+    <a class="grafana-link" href="http://localhost:3001/d/llm-serve" target="_blank">Grafana →</a>
+  </div>
+
+  <div class="widget-grid" id="widget-grid">
+    <!-- Widgets rendered by JS -->
+  </div>
+</main>
+<a href="/alt" class="alt-link" title="Open alternate layout">alt ↗</a>
+
+</div>
+
+<script>
+// === Widget system ===
+const DEFAULT_WIDGETS = [
+  { id: "activity", title: "Activity", render: renderActivity, span: true },
+  { id: "model", title: "Model", render: renderModel },
+  { id: "kv", title: "KV Cache", render: renderKV },
+  { id: "roster", title: "Model Roster", render: renderRoster },
+  { id: "stats", title: "Key Stats", render: renderStats },
+  { id: "gpu", title: "GPU", render: renderGpu },
+  { id: "metrics", title: "Metrics", render: renderMetrics },
+];
+const LS_KEY = "sidecar-widget-state";
+const widgetGrid = document.getElementById("widget-grid");
+
+function loadWidgetState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (!Array.isArray(state.order) || !Array.isArray(state.collapsed)) return null;
+    // Validate: only known widget ids
+    const known = new Set(DEFAULT_WIDGETS.map(w => w.id));
+    const valid = state.order.filter(id => known.has(id));
+    if (valid.length !== state.order.length) return null;
+    return state;
+  } catch { return null; }
+}
+
+function saveWidgetState() {
+  const order = [...widgetGrid.children].map(el => el.dataset.widgetId);
+  const collapsed = [...widgetGrid.children].filter(el => el.classList.contains("collapsed")).map(el => el.dataset.widgetId);
+  localStorage.setItem(LS_KEY, JSON.stringify({ order, collapsed }));
+}
+
+function resetLayout() {
+  localStorage.removeItem(LS_KEY);
+  renderWidgets();
+}
+
+function toggleCollapse(id) {
+  // Toggle the collapsed state in localStorage
+  const state = loadWidgetState();
+  const order = state ? state.order : DEFAULT_WIDGETS.map(w => w.id);
+  const collapsed = state ? new Set(state.collapsed) : new Set();
+  if (collapsed.has(id)) {
+    collapsed.delete(id);
+  } else {
+    collapsed.add(id);
+  }
+  localStorage.setItem(LS_KEY, JSON.stringify({ order, collapsed: [...collapsed] }));
+  renderWidgets();
+  updateDocked();
+  // Re-render the widget we just expanded
+  const widget = DEFAULT_WIDGETS.find(w => w.id === id);
+  if (widget && !collapsed.has(id)) widget.render();
+}
+
+function updateDocked() {
+  const dockedUl = document.getElementById("docked-widgets");
+  const dockedGroup = document.getElementById("docked-group");
+  if (!dockedUl || !dockedGroup) return;
+  const state = loadWidgetState();
+  const collapsed = state ? state.collapsed : [];
+  if (collapsed.length === 0) {
+    dockedGroup.style.display = "none";
+    dockedUl.innerHTML = "";
+    return;
+  }
+  dockedGroup.style.display = "";
+  dockedUl.innerHTML = collapsed.map(id => {
+    const widget = DEFAULT_WIDGETS.find(w => w.id === id);
+    const title = widget ? widget.title : id;
+    let body = "";
+    if (id === "model") {
+      body = `<div class="stat-sub">${escHtml(data.model || "—")}</div>`;
+    } else if (id === "roster") {
+      const presets = data.presets.map(p =>
+        `<li class="nav-model ${p.name === data.model ? "loaded" : "dim"}">
+          <span>${escHtml(p.name)}</span>
+          ${p.name === data.model ? "" : `<button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')">LOAD</button>`}
+        </li>`).join("");
+      const others = data.others.map(n =>
+        `<li class="nav-model dim"><span>${escHtml(n)}</span></li>`).join("");
+      body = `<ul>${presets}</ul><div class="other-models"><div class="nm-toggle">▸ Other (${data.others.length})</div><ul class="nm-list">${others}</ul></div>`;
+    }
+    return `<li class="docked-widget" id="docked-${id}">
+      <div class="docked-header" onclick="toggleCollapse('${id}')">
+        <span>▸ ${title}</span>
+      </div>
+      <div class="docked-body">${body}</div>
+    </li>`;
+  }).join("");
+}
+
+function moveWidget(id, dir) {
+  const el = widgetGrid.querySelector(`[data-widget-id="${id}"]`);
+  if (!el) return;
+  if (dir === "up" && el.previousElementSibling) {
+    widgetGrid.insertBefore(el, el.previousElementSibling);
+  } else if (dir === "down" && el.nextElementSibling) {
+    widgetGrid.insertBefore(el.nextElementSibling, el);
+  }
+  saveWidgetState();
+}
+
+function renderWidgets() {
+  const state = loadWidgetState();
+  const order = state ? state.order : DEFAULT_WIDGETS.map(w => w.id);
+  const collapsed = state ? new Set(state.collapsed) : new Set();
+  widgetGrid.innerHTML = "";
+  for (const id of order) {
+    const widget = DEFAULT_WIDGETS.find(w => w.id === id);
+    if (!widget) continue;
+    // Skip collapsed widgets — they live in the sidebar
+    if (collapsed.has(id)) continue;
+    const el = document.createElement("div");
+    el.className = "widget" + (widget.span ? " widget-span" : "");
+    el.dataset.widgetId = id;
+    if (widget.span) {
+      // Immutable: no drag, no collapse, no move
+      el.innerHTML = `
+        <div class="widget-header">
+          <span class="w-title">${widget.title}</span>
+        </div>
+        <div class="widget-body" id="widget-${id}"></div>
+      `;
+    } else {
+      el.innerHTML = `
+        <div class="widget-header" draggable="true">
+          <span class="w-title">${widget.title}</span>
+          <div class="w-controls">
+            <button class="w-btn" onclick="moveWidget('${id}','up')" title="Move up">↑</button>
+            <button class="w-btn" onclick="moveWidget('${id}','down')" title="Move down">↓</button>
+            <button class="w-btn" onclick="toggleCollapse('${id}')" title="Collapse">▾</button>
+          </div>
+        </div>
+        <div class="widget-body" id="widget-${id}"></div>
+      `;
+    }
+    widgetGrid.appendChild(el);
+  }
+  // Attach drag handlers (skip span widgets)
+  widgetGrid.querySelectorAll(".widget:not(.widget-span)").forEach(w => {
+    w.addEventListener("dragstart", onDragStart);
+    w.addEventListener("dragover", onDragOver);
+    w.addEventListener("drop", onDrop);
+    w.addEventListener("dragend", onDragEnd);
+  });
+}
+
+let dragSrc = null;
+let dropTarget = null; // element to insert before (or null = append)
+let dropAfter = false; // true = insert after target
+
+function onDragStart(e) {
+  dragSrc = e.currentTarget;
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", dragSrc.dataset.widgetId);
+  dragSrc.classList.add("dragging");
+  dropTarget = null;
+  dropAfter = false;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  if (!dragSrc || dragSrc === e.currentTarget) return;
+  const target = e.currentTarget;
+  const rect = target.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  // Preview: highlight where the widget would land
+  widgetGrid.querySelectorAll(".drop-before, .drop-after").forEach(el => {
+    el.classList.remove("drop-before", "drop-after");
+  });
+  if (e.clientY < midY) {
+    dropTarget = target;
+    dropAfter = false;
+    target.classList.add("drop-before");
+  } else {
+    dropTarget = target;
+    dropAfter = true;
+    target.classList.add("drop-after");
+  }
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  if (!dragSrc) return;
+  // Commit: move the widget to the previewed position
+  if (dropTarget) {
+    if (dropAfter) {
+      widgetGrid.insertBefore(dragSrc, dropTarget.nextElementSibling);
+    } else {
+      widgetGrid.insertBefore(dragSrc, dropTarget);
+    }
+  }
+  clearDropPreview();
+  dragSrc.classList.remove("dragging");
+  dragSrc = null;
+  dropTarget = null;
+  saveWidgetState();
+}
+
+function onDragEnd(e) {
+  // If no drop occurred, widget stays in original position
+  clearDropPreview();
+  if (dragSrc) dragSrc.classList.remove("dragging");
+  dragSrc = null;
+  dropTarget = null;
+}
+
+function clearDropPreview() {
+  widgetGrid.querySelectorAll(".drop-before, .drop-after").forEach(el => {
+    el.classList.remove("drop-before", "drop-after");
+  });
+}
+
+// === Data ===
+let data = { model: null, snapshots: [], presets: [], others: [] };
+
+// === GPU ===
+let gpuData = null;
+async function fetchGpu() {
+  try {
+    const r = await fetch("/api/gpu");
+    if (!r.ok) { console.error("GPU fetch failed:", r.status); gpuData = null; return; }
+    gpuData = await r.json();
+    console.log("GPU data:", gpuData.vendor, gpuData.power_w);
+  } catch (e) { console.error("GPU fetch error:", e); gpuData = null; }
+}
+
+// GPU history buffers (rolling, 2s intervals, 300 points = 10 min)
+const GPU_MAX_POINTS = 300;
+let gpuHistory = { power: [], vram: [], compute: [], temp: [], freq: [] };
+
+function tickGpuHistory() {
+  if (!gpuData) return;
+  const now = {
+    power: gpuData.power_w || 0,
+    vram: gpuData.vram_used_mib || 0,
+    compute: gpuData.gfx_percent || 0,
+    temp: gpuData.temp_c || 0,
+    freq: gpuData.freq_mhz || 0,
+  };
+  for (const key of Object.keys(gpuHistory)) {
+    gpuHistory[key].push(now[key]);
+    if (gpuHistory[key].length > GPU_MAX_POINTS) gpuHistory[key].shift();
+  }
+}
+
+function sparklineSVG(data, w, h, color) {
+  if (!data || data.length < 2) return "";
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return `<svg width="${w}" height="${h}" style="display:block">
+    <polyline points="${points.join(" ")}" fill="none" stroke="${color}" stroke-width="1.5" />
+  </svg>`;
+}
+
+function renderGpu() {
+  const el = document.getElementById("widget-gpu");
+  if (!el) return;
+  if (!gpuData) {
+    el.innerHTML = '<div class="stat-sub" style="color:var(--amber)">GPU data unavailable</div>';
+    return;
+  }
+  // Set theme class on <html> for GPU-vendor accent color
+  if (!localStorage.getItem(THEME_KEY)) {
+    document.documentElement.className = `theme-${gpuData.vendor}`;
+  }
+
+  const vendorLabel = gpuData.vendor.charAt(0).toUpperCase() + gpuData.vendor.slice(1);
+  const power = gpuData.power_w != null ? gpuData.power_w.toFixed(1) + " W" : "—";
+  const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + " °C" : "—";
+  const freq = gpuData.freq_mhz != null ? gpuData.freq_mhz.toFixed(0) + " MHz" : "—";
+  const vramUsed = gpuData.vram_used_mib != null ? gpuData.vram_used_mib.toFixed(0) + " MiB" : "—";
+  const vramTotal = gpuData.vram_total_mib != null ? gpuData.vram_total_mib.toFixed(0) + " MiB" : "—";
+  const compute = gpuData.gfx_percent != null ? gpuData.gfx_percent.toFixed(0) + " %" : "—";
+  const fan = gpuData.fan_rpm != null ? gpuData.fan_rpm.toFixed(0) + " RPM" : "—";
+
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
+  const w = el.clientWidth || 300;
+  const sw = Math.floor((w - 40) / 3); // 3 sparklines side by side
+
+  el.innerHTML = `
+    <div class="stat-label">${vendorLabel} GPU</div>
+    <div class="stat-sub">${gpuData.name || "unknown"}</div>
+    <div class="stat-row" style="margin-top:8px">
+      <span>Power</span><b>${power}</b>
+    </div>
+    <div class="stat-row">
+      <span>Compute</span><b>${compute}</b>
+    </div>
+    <div class="stat-row">
+      <span>VRAM</span><b>${vramUsed} / ${vramTotal}</b>
+    </div>
+    <div class="stat-row">
+      <span>Temp</span><b>${temp}</b>
+    </div>
+    <div class="stat-row">
+      <span>Freq</span><b>${freq}</b>
+    </div>
+    <div class="stat-row">
+      <span>Fan</span><b>${fan}</b>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <div>
+        <div class="stat-sub" style="font-size:10px">Power</div>
+        ${sparklineSVG(gpuHistory.power, sw, 30, accent)}
+      </div>
+      <div>
+        <div class="stat-sub" style="font-size:10px">Compute</div>
+        ${sparklineSVG(gpuHistory.compute, sw, 30, accent)}
+      </div>
+      <div>
+        <div class="stat-sub" style="font-size:10px">VRAM</div>
+        ${sparklineSVG(gpuHistory.vram, sw, 30, accent)}
+      </div>
+    </div>
+  `;
+}
+
+// === Theme ===
+const THEMES = ["slate", "amd", "nvidia", "intel"];
+const THEME_KEY = "sidecar-theme";
+
+function getTheme() {
+  return localStorage.getItem(THEME_KEY) || "slate";
+}
+
+function applyTheme(theme) {
+  document.documentElement.className = `theme-${theme}`;
+}
+
+function cycleTheme() {
+  const current = getTheme();
+  const idx = THEMES.indexOf(current);
+  const next = THEMES[(idx + 1) % THEMES.length];
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+}
+
+// Init theme
+applyTheme(getTheme());
+document.getElementById("theme-toggle").addEventListener("click", cycleTheme);
+
+// === Metrics (sparklines + ring) ===
+let metricsData = { decode: [], ctx: [] };
+
+async function fetchMetrics() {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const start = now - 600; // 10 min
+    const [r1, r2] = await Promise.all([
+      fetch(`/api/prometheus/query_range?query=llamacpp:predicted_tokens_seconds&start=${start}&end=${now}&step=10`).then(r => r.json()),
+      fetch(`/api/prometheus/query_range?query=llamacpp:n_tokens_max&start=${start}&end=${now}&step=10`).then(r => r.json()),
+    ]);
+    const d1 = r1.data?.result?.[0]?.values || [];
+    const d2 = r2.data?.result?.[0]?.values || [];
+    metricsData.decode = d1.map(v => parseFloat(v[1]));
+    metricsData.ctx = d2.map(v => parseFloat(v[1]));
+  } catch { /* keep old data */ }
+}
+
+function sparklineSVG(values, width, height, color) {
+  if (!values || values.length < 2) return `<svg width="${width}" height="${height}"></svg>`;
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" />
+  </svg>`;
+}
+
+function ringChartSVG(pct, size, strokeWidth, color) {
+  const r = (size - strokeWidth) / 2;
+  const c = 2 * Math.PI * r;
+  const dash = (pct / 100) * c;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}" />
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
+      stroke-dasharray="${dash} ${c}" stroke-linecap="round"
+      transform="rotate(-90 ${size/2} ${size/2})" />
+    <text x="${size/2}" y="${size/2}" text-anchor="middle" dominant-baseline="central"
+      fill="var(--ink)" font-size="${size/5}" font-family="var(--mono)">${pct.toFixed(0)}%</text>
+  </svg>`;
+}
+
+function renderMetrics() {
+  const el = document.getElementById("widget-metrics");
+  if (!el) return;
+  const nCtx = 128000;
+  const ctxNow = metricsData.ctx.length ? metricsData.ctx[metricsData.ctx.length - 1] : 0;
+  const ctxPct = Math.min((ctxNow / nCtx) * 100, 100);
+  const decodeNow = metricsData.decode.length ? metricsData.decode[metricsData.decode.length - 1] : 0;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
+
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center">
+      <div>
+        ${ringChartSVG(ctxPct, 80, 8, accent)}
+        <div class="stat-sub" style="text-align:center;margin-top:4px">ctx ${ctxNow ? ctxNow.toLocaleString() : "—"} / ${nCtx.toLocaleString()}</div>
+      </div>
+      <div style="flex:1">
+        <div class="stat-label">Decode (10m)</div>
+        ${sparklineSVG(metricsData.decode, 200, 50, accent)}
+        <div class="stat-sub">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s</div>
+        <div class="stat-label" style="margin-top:8px">Ctx (10m)</div>
+        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)")}
+        <div class="stat-sub">now: ${ctxNow ? ctxNow.toLocaleString() : "—"} tokens</div>
+      </div>
+    </div>
+  `;
+}
+
+// === Activity Strip ===
+const ACTIVITY_MAX_POINTS = 300; // 10 min at 2s intervals
+let activityBuffer = [];
+
+function renderActivity() {
+  const el = document.getElementById("widget-activity");
+  if (!el) return;
+  if (activityBuffer.length < 2) {
+    el.innerHTML = '<div class="timeline-track" style="height:50px"></div>';
+    return;
+  }
+  const w = el.clientWidth || 800;
+  const h = 50;
+  const max = Math.max(...activityBuffer, 1);
+  // Dense 1px bars forming a waveform
+  const barW = 1;
+  const visible = activityBuffer.slice(-w);
+  const bars = visible.map((v, i) => {
+    const x = i;
+    const barH = (v / max) * (h - 4);
+    const y = 2;
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH.toFixed(1)}" fill="var(--accent)" opacity="0.7" />`;
+  });
+  const decodeNow = activityBuffer[activityBuffer.length - 1];
+  const spanMin = (activityBuffer.length * 2) / 60;
+  el.innerHTML = `
+    <div class="timeline-header">
+      <span class="t-title">Decode Activity</span>
+      <span class="t-range">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s · last ${spanMin.toFixed(0)}m</span>
+    </div>
+    <div class="timeline-track">
+      <svg width="100%" height="${h}" preserveAspectRatio="none">${bars.join("")}</svg>
+    </div>
+  `;
+}
+
+function tickActivity() {
+  // Read current decode from metricsData
+  if (metricsData.decode.length > 0) {
+    const now = metricsData.decode[metricsData.decode.length - 1];
+    activityBuffer.push(now);
+    if (activityBuffer.length > ACTIVITY_MAX_POINTS) {
+      activityBuffer.shift();
+    }
+  }
+  renderActivity();
+}
+
+async function poll() {
+  try {
+    const [kvRes, rosterRes] = await Promise.all([
+      fetch("/api/kv/snapshots").then(r => r.json()),
+      fetch("/api/models/roster").then(r => r.json()),
+    ]);
+    data.model = kvRes.model;
+    data.snapshots = kvRes.snapshots;
+    data.presets = rosterRes.presets;
+    data.others = rosterRes.others;
+    document.getElementById("main-status").textContent = "LIVE";
+    // Only create widgets on first poll; subsequent polls just update content
+    if (!window._widgetsInitialized) {
+      renderWidgets();
+      window._widgetsInitialized = true;
+    }
+    updateDocked();
+    renderModel();
+    renderKV();
+    renderRoster();
+    renderStats();
+    fetchGpu().then(() => { tickGpuHistory(); renderGpu(); });
+    fetchMetrics().then(renderMetrics).then(tickActivity);
+  } catch (e) {
+    document.getElementById("main-status").textContent = "ERROR";
+  }
+}
+
+// === Renderers ===
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
+  return (bytes / 1073741824).toFixed(1) + " GB";
+}
+
+function fmtAge(mtime) {
+  if (!mtime) return "—";
+  const age = (Date.now() / 1000 - mtime);
+  if (age < 60) return Math.round(age) + "s ago";
+  if (age < 3600) return Math.round(age / 60) + "m ago";
+  if (age < 86400) return Math.round(age / 3600) + "h ago";
+  return Math.round(age / 86400) + "d ago";
+}
+
+function renderModel() {
+  const el = document.getElementById("widget-model");
+  if (!el) return;
+  const model = data.model || "—";
+  el.innerHTML = `
+    <div class="stat-label">Loaded Model</div>
+    <div class="stat-row">
+      <span class="stat-value" style="font-size:18px;">${escHtml(model)}</span>
+    </div>
+    <div class="stat-sub">${data.model ? "active" : "no model loaded"}</div>
+  `;
+}
+
+function renderKV() {
+  const el = document.getElementById("widget-kv");
+  if (!el) return;
+  const snaps = data.snapshots;
+  let listHtml = "";
+  if (snaps.length === 0) {
+    listHtml = `<div class="kv-status">no snapshots</div>`;
+  } else {
+    listHtml = `<ul class="kv-list">`;
+    for (const s of snaps) {
+      listHtml += `<li>
+        <span class="kv-name">${escHtml(s.filename)}</span>
+        <span class="kv-size">${fmtSize(s.size)}</span>
+        <span class="kv-age">${fmtAge(s.mtime)}</span>
+      </li>`;
+    }
+    listHtml += `</ul>`;
+  }
+  const hasModel = !!data.model;
+  el.innerHTML = `
+    ${listHtml}
+    <div class="kv-actions">
+      <button onclick="kvSave()" ${hasModel ? "" : "disabled"}>SAVE</button>
+      <button onclick="kvRestore()" ${hasModel && snaps.length ? "" : "disabled"}>RESTORE</button>
+      <button onclick="kvSwap()" ${hasModel ? "" : "disabled"}>SWAP</button>
+      <button class="danger" onclick="kvErase()" ${hasModel ? "" : "disabled"}>ERASE</button>
+      <button class="danger" onclick="kvPrune()" ${snaps.length ? "" : "disabled"}>PRUNE</button>
+    </div>
+    <div class="kv-status" id="kv-status">—</div>
+  `;
+}
+
+function renderRoster() {
+  const el = document.getElementById("widget-roster");
+  if (!el) return;
+  let html = `<ul class="model-list">`;
+  for (const p of data.presets) {
+    const loaded = p.name === data.model;
+    html += `<li>
+      <span class="m-name ${loaded ? "loaded" : ""}">${escHtml(p.name)}</span>
+      ${loaded ? "" : `<button class="m-btn" onclick="loadModel('${escHtml(p.name)}')">LOAD</button>`}
+    </li>`;
+  }
+  for (const name of data.others) {
+    html += `<li><span class="m-name" style="color:var(--ink-mute);">${escHtml(name)}</span></li>`;
+  }
+  html += `</ul>`;
+  el.innerHTML = html;
+}
+
+function renderStats() {
+  const el = document.getElementById("widget-stats");
+  if (!el) return;
+  if (!window._statsInitialized) {
+    el.innerHTML = `
+      <div class="stat-label">Live Metrics</div>
+      <div class="stat-sub" id="stats-sub">loading…</div>
+    `;
+    window._statsInitialized = true;
+  }
+  fetchStats();
+}
+
+async function fetchStats() {
+  const el = document.getElementById("stats-sub");
+  if (!el) return;
+  try {
+    // Query via sidecar proxy to avoid CORS
+    const [r1, r2] = await Promise.all([
+      fetch("/api/prometheus/query?query=llamacpp:predicted_tokens_seconds").then(r => r.json()),
+      fetch("/api/prometheus/query?query=llamacpp:n_tokens_max").then(r => r.json()),
+    ]);
+    const decode = r1.data?.result?.[0]?.value?.[1] || "0";
+    const nTokens = r2.data?.result?.[0]?.value?.[1] || "0";
+    el.innerHTML = `decode: <b>${decode}</b> tok/s · ctx: <b>${nTokens}</b> tokens`;
+  } catch {
+    el.innerHTML = "metrics unavailable";
+  }
+}
+
+// === KV actions ===
+async function kvAction(action, payload = {}) {
+  const status = document.getElementById("kv-status");
+  if (status) status.textContent = "…";
+  try {
+    const resp = await fetch(`/api/kv/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const d = await resp.json();
+    if (status) {
+      if (d.error) status.textContent = "error: " + d.error;
+      else status.textContent = JSON.stringify(d).slice(0, 100);
+    }
+    poll();
+  } catch (e) {
+    if (status) status.textContent = "error: " + e.message;
+  }
+}
+
+function kvSave() {
+  const name = prompt("Snapshot name (default: timestamp):", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
+  if (name !== null) kvAction("save", { filename: name });
+}
+function kvRestore() {
+  if (confirm("Restore the most recent snapshot?")) kvAction("restore");
+}
+function kvSwap() {
+  if (confirm("Swap: save current + erase slot?")) kvAction("swap");
+}
+function kvErase() {
+  if (confirm("Erase the slot? Active context will be lost.")) kvAction("erase");
+}
+function kvPrune() {
+  const keep = prompt("Keep how many most recent snapshots?", "3");
+  if (keep !== null && confirm(`Prune to keep ${keep} most recent?`)) kvAction("prune", { keep: parseInt(keep) || 3 });
+}
+
+// === Model actions ===
+async function loadModel(name) {
+  try {
+    const resp = await fetch("/api/models/load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: name }),
+    });
+    const d = await resp.json();
+    if (d.error) alert("Load failed: " + d.error);
+    poll();
+  } catch (e) {
+    alert("Load failed: " + e.message);
+  }
+}
+
+// === Init ===
+renderWidgets();
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

@@ -346,6 +346,211 @@ def fetch_router_models(port):
         })
     return out
 
+# Models directory + presets.ini — the sidebar's two sources: presets (actionable) and
+# the rest of the ggufs (read-only, collapsed). Both are server-side so the browser never
+# touches the filesystem and the INI is parsed by Python, not JS.
+MODELS_DIR = os.environ.get("MODELS_DIR", "/opt/models")
+
+
+def parse_presets(path):
+    """Parse presets.ini into a list of active presets. Each is {id, model, mmproj}.
+    id = the section name (what the router's load API keys on); model/mmproj = the
+    gguf paths so the caller can decide which files are 'covered'. The [*] global
+    section and commented-out sections are skipped. [] when the file is missing."""
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return []
+    presets = []
+    cur = None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        if s.startswith("[") and s.endswith("]"):
+            name = s[1:-1].strip()
+            if name == "*":
+                cur = None          # globals section: no per-model keys
+                continue
+            cur = {"id": name, "model": None, "mmproj": None}
+            presets.append(cur)
+            continue
+        if cur is None or "=" not in s:
+            continue
+        k, v = s.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if k in ("model", "mmproj"):
+            cur[k] = v or None
+    return presets
+
+
+def scan_models_dir(path, presets):
+    """List the ggufs in the models dir, split into presets (by id, actionable) and
+    the rest (read-only, collapsed). A gguf is a preset when its basename matches a
+    preset's model path basename. mmproj files and non-gguf files are excluded from
+    'other' — they're auxiliary, not loadable models."""
+    preset_ids = {p["id"] for p in presets}
+    covered = set()
+    for p in presets:
+        if p.get("model"):
+            covered.add(os.path.basename(p["model"]))
+    other = []
+    try:
+        files = sorted(os.listdir(path))
+    except Exception:
+        files = []
+    for name in files:
+        if not name.endswith(".gguf"):
+            continue
+        if name.startswith("mmproj") or name.startswith("mmproj-"):
+            continue
+        if name in covered:
+            continue
+        other.append({"id": name, "name": name[:-len(".gguf")]})
+    return {"presets": presets, "other_models": other}
+
+
+# KV cache control — wraps the router's /slots/0 save/erase/restore endpoints (the same
+# calls context-kit's /ctx-* commands make) and adds PRUNING of the local snapshot store.
+# The dashboard process owns the filesystem, so prune is backend-side FS work, not a router
+# call. Model name is auto-detected from /v1/models (the loaded entry), so the UI never sends it.
+KV_ROUTER = os.environ.get("LLAMA_ROUTER", "http://127.0.0.1:8080")
+KV_SNAPSHOT_DIR = os.environ.get("KV_SNAPSHOT_DIR", "/opt/models/kvcache")
+KV_DEFAULT_KEEP = int(os.environ.get("KV_DEFAULT_KEEP", "3"))
+KV_REGISTRY = os.path.join(KV_SNAPSHOT_DIR, "kv-snapshots.json")
+
+
+def _kv_registry_read():
+    """Read the snapshot registry (filename -> {model, mtime, size}). {} when absent."""
+    try:
+        return json.load(open(KV_REGISTRY))
+    except Exception:
+        return {}
+
+
+def _kv_registry_write(reg):
+    """Persist the registry. Best-effort — a write failure must not break a KV op."""
+    try:
+        with open(KV_REGISTRY, "w") as f:
+            json.dump(reg, f, indent=2)
+    except Exception:
+        pass
+
+
+def _kv_registry_get(filename):
+    """The model a snapshot was saved with, or None if untagged."""
+    e = _kv_registry_read().get(filename)
+    return e.get("model") if isinstance(e, dict) else None
+
+
+def _kv_base():
+    """KV router base URL, with or without a trailing slash."""
+    return KV_ROUTER.rstrip("/")
+
+
+def _loaded_model():
+    """The id of the model currently loaded on the router, or None when nothing is loaded.
+    Reads /v1/models and picks the entry whose status.value == 'loaded'."""
+    try:
+        req = urllib.request.Request(_kv_base() + "/v1/models", headers={"User-Agent": "curl"})
+        resp = scrape_open(req, timeout=3)
+        data = json.loads(read_capped(resp))
+    except Exception:
+        return None
+    entries = data.get("data") if isinstance(data, dict) else None
+    for m in (entries if isinstance(entries, list) else []):
+        if not isinstance(m, dict):
+            continue
+        st = m.get("status")
+        st = st if isinstance(st, dict) else {}
+        if st.get("value") == "loaded":
+            return str(m.get("id", "") or "")
+    return None
+
+
+def _kv_list_snapshots(model=None):
+    """List snapshots in the snapshot dir, most recent first, each tagged with the model
+    it was saved with. When `model` is given, only snapshots saved for that model are
+    returned (KV caches are model-specific — a snapshot from model A cannot be restored
+    into model B). The registry (kv-snapshots.json) holds the model tag; untagged files
+    (saved before tagging existed) carry model=None. [] when the dir is missing.
+
+    The router strips the .bin extension on save (a file named 'foo.bin' lands on disk
+    as 'foo'), so we list every regular file here except the registry itself."""
+    reg = _kv_registry_read()
+    out = []
+    try:
+        names = os.listdir(KV_SNAPSHOT_DIR)
+    except Exception:
+        return out
+    for name in names:
+        if name == "kv-snapshots.json":
+            continue
+        full = os.path.join(KV_SNAPSHOT_DIR, name)
+        try:
+            st = os.stat(full)
+        except Exception:
+            continue
+        if not st.st_size:
+            continue
+        entry = reg.get(name)
+        smodel = entry.get("model") if isinstance(entry, dict) else None
+        out.append({"filename": name, "model": smodel,
+                    "size": st.st_size, "mtime": st.st_mtime})
+    if model:
+        out = [s for s in out if s["model"] == model]
+    out.sort(key=lambda s: s["mtime"], reverse=True)
+    return out
+
+
+def _kv_prune(keep, model=None):
+    """Keep the `keep` most recent snapshots (for `model` when given), delete the rest.
+    Returns {deleted, kept}. Deletion is by age (mtime desc); a snapshot being restored
+    is read before any prune, so this only removes old files."""
+    snaps = _kv_list_snapshots(model)
+    keep = max(0, int(keep))
+    to_delete = snaps[keep:]
+    reg = _kv_registry_read()
+    deleted = 0
+    for s in to_delete:
+        try:
+            os.unlink(os.path.join(KV_SNAPSHOT_DIR, s["filename"]))
+            reg.pop(s["filename"], None)
+            deleted += 1
+        except Exception:
+            pass
+    _kv_registry_write(reg)
+    return {"deleted": deleted, "kept": min(len(snaps), keep)}
+
+
+def _kv_router_call(action, payload, timeout=15):
+    """POST /slots/0?action=<action> to the router with `payload`. Returns the router's
+    JSON (success fields or its error). {} on transport failure."""
+    url = _kv_base() + "/slots/0?action=" + action
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json", "User-Agent": "curl"},
+            method="POST")
+        resp = scrape_open(req, timeout=timeout)
+        return json.loads(read_capped(resp))
+    except Exception:
+        return {"error": "router unreachable"}
+
+
+def _kv_tag(filename, model):
+    """Record in the registry that `filename` was saved with `model`, and its size/mtime."""
+    reg = _kv_registry_read()
+    try:
+        st = os.stat(os.path.join(KV_SNAPSHOT_DIR, filename))
+        size, mtime = st.st_size, st.st_mtime
+    except Exception:
+        size, mtime = 0, time.time()
+    reg[filename] = {"model": model, "size": size, "mtime": mtime}
+    _kv_registry_write(reg)
+
+
 # Secondary CPU-only llama-servers (optional). Each raw llama-server exposes the prometheus
 # /metrics, /props, /lora-adapters API on its own port; the dashboard shows one panel per entry.
 # EDIT THESE for your setup, or set SECONDARY_SERVERS='name:port,name:port' in the environment.
@@ -1153,7 +1358,14 @@ def fetch_endpoint(port):
     loras = fetch_llama_loras(port) if up else []
     active_loras = [l for l in loras if (l.get("scale") or 0) > 0]
     n_ctx = props.get("n_ctx", 0) if isinstance(props, dict) else 0
+    # ctx fill: prefer the explicit kv_cache_usage_ratio; fall back to n_tokens_max / n_ctx
+    # when the ratio series is absent (some llama.cpp builds export n_tokens_max but not the
+    # ratio). n_tokens_max is the peak tokens in the slot — the same quantity the ratio
+    # expresses as a fraction of n_ctx.
     kv_ratio = metrics.get("llamacpp:kv_cache_usage_ratio", 0) if isinstance(metrics, dict) else 0
+    n_tokens_max = metrics.get("llamacpp:n_tokens_max", 0) if isinstance(metrics, dict) else 0
+    if not kv_ratio and n_tokens_max and n_ctx:
+        kv_ratio = n_tokens_max / n_ctx
 
     # llama.cpp's two rate gauges are instantaneous: they read 0 the moment a generation ends, so
     # the panel used to flip to "0.0 tok/s" between requests on a perfectly healthy server. Hold
@@ -1175,7 +1387,7 @@ def fetch_endpoint(port):
             "prompt_tps_age_s": round(pp_age, 1) if pp_age else pp_age,
             "decode_tps_age_s": round(tg_age, 1) if tg_age else tg_age,
             "n_ctx": n_ctx,
-            "ctx_used_tokens": metrics.get("llamacpp:kv_cache_tokens", round(kv_ratio * n_ctx)) if up else 0,
+            "ctx_used_tokens": (int(n_tokens_max) if n_tokens_max else round(kv_ratio * n_ctx)) if up else 0,
             "ctx_fill_pct": round(kv_ratio * 100, 1) if up else 0,
             "n_loras_active": len(active_loras),
             "n_loras": len(loras),
@@ -1479,6 +1691,24 @@ class Handler(BaseHTTPRequestHandler):
             self._send_cors()
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/api/kv/snapshots":
+            # ?model=<id> filters to snapshots saved for that model (KV caches are
+            # model-specific). No query arg → list everything with its model tag.
+            q = self.path.split('?', 1)[1] if '?' in self.path else ''
+            model = None
+            if q:
+                from urllib.parse import parse_qs
+                mv = parse_qs(q).get('model', [''])
+                model = mv[0] if mv and mv[0] else None
+            body = json.dumps({"snapshots": _kv_list_snapshots(model),
+                              "model": model, "dir": KV_SNAPSHOT_DIR},
+                              indent=2, allow_nan=False).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path in ("/", "/index.html"):
             # Serve the dashboard from this origin so its fetches are same-origin and no CORS
             # grant is needed. Fixed path next to this file — nothing from the request reaches
@@ -1517,11 +1747,13 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split('?', 1)[0]
         if path in ("/api/models/load", "/api/models/unload"):
             self._router_model_action(path == "/api/models/load")
+        elif path in ("/api/kv/save", "/api/kv/restore", "/api/kv/erase", "/api/kv/swap", "/api/kv/prune"):
+            self._kv_action(path)
         else:
             self.send_response(404)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
-            self.wfile.write(b"404 - use /api/models/load or /api/models/unload")
+            self.wfile.write(b"404 - use /api/models/load|unload or /api/kv/{save,restore,erase,swap,prune}")
 
     def _router_model_action(self, loading):
         """Proxy POST /models/load|unload to the models-dir router. The sidebar roster is
@@ -1594,6 +1826,98 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _kv_action(self, path):
+        """Handle the KV cache actions. save/restore/swap/erase proxy the router's
+        /slots/0 endpoints with the auto-detected loaded model; prune is backend-side
+        filesystem work. A body of {"filename": ...} or {"keep": N} is optional."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            body_in = json.loads(self.rfile.read(length) or b'{}')
+        except Exception:
+            body_in = {}
+        if not isinstance(body_in, dict):
+            body_in = {}
+
+        def _reply(code, payload):
+            b = json.dumps(payload, indent=2, allow_nan=False).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self._send_cors()
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        action = path.rsplit("/", 1)[1]
+        if action == "prune":
+            keep = body_in.get("keep", KV_DEFAULT_KEEP)
+            try:
+                keep = int(keep)
+            except (TypeError, ValueError):
+                _reply(400, {"error": "keep must be an integer"})
+                return
+            # Prune is scoped to the loaded model's snapshots (KV caches are
+            # model-specific); other models' snapshots are left untouched.
+            model = _loaded_model()
+            _reply(200, _kv_prune(keep, model))
+            return
+
+        # save/restore/swap/erase all need a loaded model.
+        model = _loaded_model()
+        if not model:
+            _reply(502, {"error": "no model loaded — nothing to operate on"})
+            return
+        filename = body_in.get("filename")
+        if action in ("save", "restore", "swap") and (not isinstance(filename, str) or not filename):
+            # default to a timestamp name for save/swap; restore with no name = most recent.
+            # The router strips the .bin extension on save (a file named 'foo.bin' lands
+            # on disk as 'foo'), so we never append .bin — the registry key is the bare name.
+            if action == "restore":
+                snaps = _kv_list_snapshots(model)
+                if not snaps:
+                    _reply(404, {"error": f"no snapshots for model {model}"})
+                    return
+                filename = snaps[0]["filename"]
+            else:
+                filename = time.strftime("%Y-%m-%dT%H-%M-%S")
+
+        if action == "swap":
+            saved = _kv_router_call("save", {"model": model, "filename": filename})
+            if not (isinstance(saved, dict) and (saved.get("success") or "n_saved" in saved)):
+                _reply(502, saved)
+                return
+            _kv_tag(saved.get("filename", filename), model)   # tag before erase
+            erased = _kv_router_call("erase", {"model": model})
+            _reply(200, {"saved": saved, "erased": erased})
+            return
+
+        if action == "restore":
+            # Only restore a snapshot saved for the currently-loaded model — a KV cache
+            # from model A is invalid for model B.
+            target = _kv_list_snapshots(model)
+            if not target:
+                _reply(404, {"error": f"no snapshots for model {model}"})
+                return
+            if filename not in [s["filename"] for s in target]:
+                _reply(404, {"error": f"snapshot {filename} not saved for model {model}"})
+                return
+            out = _kv_router_call("restore", {"model": model, "filename": filename})
+            ok = isinstance(out, dict) and (out.get("success") or "n_restored" in out)
+            _reply(200 if ok else 502, out)
+            return
+
+        if action == "save":
+            out = _kv_router_call("save", {"model": model, "filename": filename})
+            ok = isinstance(out, dict) and (out.get("success") or "n_saved" in out)
+            if ok:
+                _kv_tag(out.get("filename", filename), model)
+            _reply(200 if ok else 502, out)
+            return
+
+        # erase
+        out = _kv_router_call("erase", {"model": model})
+        ok = isinstance(out, dict) and (out.get("success") or "n_erased" in out)
+        _reply(200 if ok else 502, out)
+
     def _read_thoughts(self, max_bytes=6000):
         """Tail of an optional Thought-Tap log — live reasoning_content (CoT) captured by a
         proxy in front of the worker. Set THOUGHT_LOG=/path/to/thinking.log to enable it;
@@ -1662,6 +1986,7 @@ class Handler(BaseHTTPRequestHandler):
             "gpus": attach_gpu_tenants(parse_gpus(), worker),
             "worker_port": worker_port,
             "router_models": fetch_router_models(router_port) if router_port else [],
+            "models": scan_models_dir(MODELS_DIR, parse_presets(os.path.join(MODELS_DIR, "presets.ini"))),
             "llama_8001": worker,
             "secondaries": secondaries,
             "services": {

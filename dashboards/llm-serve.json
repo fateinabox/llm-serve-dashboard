@@ -1,0 +1,155 @@
+{
+  "title": "LLM Serve",
+  "uid": "llm-serve",
+  "tags": ["llm", "serve"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "timerange": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Loaded Model",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "count by (model) (llamacpp:requests_processing)", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"color": "green", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}},
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "CTX Fill %",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [
+        {"expr": "100 * llamacpp:n_tokens_max / 128000", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": "green",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "amber", "value": 60},
+              {"color": "red", "value": 85}
+            ]
+          }
+        }
+      },
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Decode tok/s",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [
+        {"expr": "llamacpp:predicted_tokens_seconds", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps", "color": "green"}},
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Prompt tok/s",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [
+        {"expr": "llamacpp:prompt_tokens_seconds", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps", "color": "green"}},
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Requests Processing",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [
+        {"expr": "llamacpp:requests_processing", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "color": "green"}},
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Requests Deferred (Queue)",
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "targets": [
+        {"expr": "llamacpp:requests_deferred", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": "green",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "amber", "value": 1}
+            ]
+          }
+        }
+      },
+      "options": {"reduce": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Decode tok/s (history)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "llamacpp:predicted_tokens_seconds", "legendFormat": "decode", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps", "color": "green"}}
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Prompt tok/s (history)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "llamacpp:prompt_tokens_seconds", "legendFormat": "prompt", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "tps", "color": "green"}}
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "CTX Fill % (history)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "100 * llamacpp:n_tokens_max / 128000", "legendFormat": "ctx fill", "refId": "A"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": "green",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "amber", "value": 60},
+              {"color": "red", "value": 85}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Requests (processing + deferred)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "llamacpp:requests_processing", "legendFormat": "processing", "refId": "A"},
+        {"expr": "llamacpp:requests_deferred", "legendFormat": "deferred", "refId": "B"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "color": "green"}}
+    }
+  ]
+}
