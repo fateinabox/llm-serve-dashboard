@@ -329,6 +329,9 @@ main {
   width: 100%;
   height: 100%;
 }
+svg circle {
+  transition: stroke-dasharray 0.8s ease, stroke-dashoffset 0.8s ease, stroke 0.4s ease;
+}
 
 .alt-link {
   position: fixed;
@@ -530,11 +533,10 @@ main {
 const DEFAULT_WIDGETS = [
   { id: "activity", title: "Activity", render: renderActivity, span: true },
   { id: "model", title: "Model", render: renderModel },
-  { id: "kv", title: "KV Cache", render: renderKV },
+  { id: "context", title: "Context", render: renderContext },
   { id: "roster", title: "Model Roster", render: renderRoster },
   { id: "stats", title: "Key Stats", render: renderStats },
   { id: "gpu", title: "GPU", render: renderGpu },
-  { id: "metrics", title: "Metrics", render: renderMetrics },
 ];
 const LS_KEY = "sidecar-widget-state";
 const widgetGrid = document.getElementById("widget-grid");
@@ -609,6 +611,24 @@ function updateDocked() {
       const others = data.others.map(n =>
         `<li class="nav-model dim"><span>${escHtml(n)}</span></li>`).join("");
       body = `<ul>${presets}</ul><div class="other-models"><div class="nm-toggle">▸ Other (${data.others.length})</div><ul class="nm-list">${others}</ul></div>`;
+    } else if (id === "gpu" && gpuData) {
+      const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
+      const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
+      const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
+      const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
+      body = `<div style="text-align:center;padding:4px 0">
+        ${layeredRingsSVG([
+          { pct: tempPct, color: tempColor, label: temp },
+          { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
+          { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
+            overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
+        ], 80)}
+        <div style="margin-top:4px;font-size:9px;display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${tempColor};margin-right:3px"></i>Temp</span>
+          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#a78bfa;margin-right:3px"></i>Compute</span>
+          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-right:3px"></i>Power</span>
+        </div>
+      </div>`;
     }
     return `<li class="docked-widget" id="docked-${id}">
       <div class="docked-header" onclick="toggleCollapse('${id}')">
@@ -774,17 +794,27 @@ function tickGpuHistory() {
   }
 }
 
-function sparklineSVG(data, w, h, color) {
+function sparklineSVG(data, w, h, color, opts) {
   if (!data || data.length < 2) return "";
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
+  opts = opts || {};
+  const mode = opts.mode || "absolute"; // "absolute" or "relative"
+  let min, max;
+  if (mode === "relative") {
+    min = Math.min(...data);
+    max = Math.max(...data);
+  } else {
+    min = 0;
+    max = opts.maxVal || Math.max(...data, 1);
+  }
   const range = max - min || 1;
   const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w;
     const y = h - ((v - min) / range) * (h - 2) - 1;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
+  const fillPoints = `0,${h} ${points.join(" ")} ${w},${h}`;
   return `<svg width="${w}" height="${h}" style="display:block">
+    <polygon points="${fillPoints}" fill="${color}" opacity="0.15" />
     <polyline points="${points.join(" ")}" fill="none" stroke="${color}" stroke-width="1.5" />
   </svg>`;
 }
@@ -814,26 +844,35 @@ function renderGpu() {
   const w = el.clientWidth || 300;
   const sw = Math.floor((w - 40) / 3); // 3 sparklines side by side
 
+  // Temperature ring (max safe: 100C AMD, 90C NVIDIA)
+  const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
+  const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
+  const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
+
   el.innerHTML = `
     <div class="stat-label">${vendorLabel} GPU</div>
     <div class="stat-sub">${gpuData.name || "unknown"}</div>
-    <div class="stat-row" style="margin-top:8px">
-      <span>Power</span><b>${power}</b>
-    </div>
-    <div class="stat-row">
-      <span>Compute</span><b>${compute}</b>
-    </div>
-    <div class="stat-row">
-      <span>VRAM</span><b>${vramUsed} / ${vramTotal}</b>
-    </div>
-    <div class="stat-row">
-      <span>Temp</span><b>${temp}</b>
-    </div>
-    <div class="stat-row">
-      <span>Freq</span><b>${freq}</b>
-    </div>
-    <div class="stat-row">
-      <span>Fan</span><b>${fan}</b>
+    <div style="display:flex;gap:12px;margin-top:8px;align-items:center">
+      <div style="flex:1">
+        <div class="stat-row"><span>Power</span><b>${power}</b></div>
+        <div class="stat-row"><span>Compute</span><b>${compute}</b></div>
+        <div class="stat-row"><span>VRAM</span><b>${vramUsed} / ${vramTotal}</b></div>
+        <div class="stat-row"><span>Freq</span><b>${freq}</b></div>
+        <div class="stat-row"><span>Fan</span><b>${fan}</b></div>
+      </div>
+      <div style="text-align:center">
+        ${layeredRingsSVG([
+          { pct: tempPct, color: tempColor, label: temp },
+          { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
+          { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
+            overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
+        ], 100)}
+        <div style="margin-top:6px;font-size:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tempColor};margin-right:4px"></i>Temp</span>
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#a78bfa;margin-right:4px"></i>Compute</span>
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-right:4px"></i>Power</span>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <div>
@@ -846,7 +885,7 @@ function renderGpu() {
       </div>
       <div>
         <div class="stat-sub" style="font-size:10px">VRAM</div>
-        ${sparklineSVG(gpuHistory.vram, sw, 30, accent)}
+        ${sparklineSVG(gpuHistory.vram, sw, 30, accent, { maxVal: gpuData.vram_total_mib })}
       </div>
     </div>
   `;
@@ -894,19 +933,7 @@ async function fetchMetrics() {
   } catch { /* keep old data */ }
 }
 
-function sparklineSVG(values, width, height, color) {
-  if (!values || values.length < 2) return `<svg width="${width}" height="${height}"></svg>`;
-  const min = Math.min(...values), max = Math.max(...values);
-  const range = max - min || 1;
-  const points = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * width;
-    const y = height - ((v - min) / range) * (height - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" />
-  </svg>`;
-}
+
 
 function ringChartSVG(pct, size, strokeWidth, color) {
   const r = (size - strokeWidth) / 2;
@@ -916,9 +943,47 @@ function ringChartSVG(pct, size, strokeWidth, color) {
     <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}" />
     <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
       stroke-dasharray="${dash} ${c}" stroke-linecap="round"
-      transform="rotate(-90 ${size/2} ${size/2})" />
+      transform="rotate(90 ${size/2} ${size/2})" />
     <text x="${size/2}" y="${size/2}" text-anchor="middle" dominant-baseline="central"
-      fill="var(--ink)" font-size="${size/5}" font-family="var(--mono)">${pct.toFixed(0)}%</text>
+      fill="var(--ink)" stroke="var(--bg)" stroke-width="3" paint-order="stroke"
+      font-size="${size/5}" font-family="var(--mono)">${pct.toFixed(0)}%</text>
+  </svg>`;
+}
+
+function layeredRingsSVG(rings, size) {
+  // rings: [{pct, color, label, overPct, overColor}] — outer to inner
+  const sw = Math.floor(size / 8); // stroke width per ring
+  const gap = 2;
+  const pad = sw;
+  const totalSize = size + pad * 2;
+  const cx = totalSize / 2;
+  const cy = totalSize / 2;
+  let maxR = size / 2 - 2;
+  const circles = rings.map((ring, i) => {
+    const r = maxR - i * (sw + gap);
+    const c = 2 * Math.PI * r;
+    const pct = Math.min(ring.pct, 100);
+    const dash = (pct / 100) * c;
+    let over = "";
+    if (ring.overPct && ring.overPct > 0) {
+      const overDash = (ring.overPct / 100) * c;
+      over = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring.overColor || "var(--red)"}" stroke-width="${sw}"
+        stroke-dasharray="${overDash} ${c}" stroke-dashoffset="${-dash}" stroke-linecap="round"
+        transform="rotate(90 ${cx} ${cy})" />`;
+    }
+    return `
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${sw}" opacity="0.3" />
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring.color}" stroke-width="${sw}"
+        stroke-dasharray="${dash} ${c}" stroke-linecap="round"
+        transform="rotate(90 ${cx} ${cy})" />
+      ${over}`;
+  });
+  const centerText = rings[0].label || "";
+  return `<svg width="${totalSize}" height="${totalSize}" viewBox="0 0 ${totalSize} ${totalSize}">
+    ${circles.join("")}
+    <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+      fill="var(--ink)" stroke="var(--bg)" stroke-width="3" paint-order="stroke"
+      font-size="${size/5}" font-family="var(--mono)">${centerText}</text>
   </svg>`;
 }
 
@@ -939,10 +1004,10 @@ function renderMetrics() {
       </div>
       <div style="flex:1">
         <div class="stat-label">Decode (10m)</div>
-        ${sparklineSVG(metricsData.decode, 200, 50, accent)}
+        ${sparklineSVG(metricsData.decode, 200, 50, accent, { mode: "relative" })}
         <div class="stat-sub">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s</div>
         <div class="stat-label" style="margin-top:8px">Ctx (10m)</div>
-        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)")}
+        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)", { mode: "relative" })}
         <div class="stat-sub">now: ${ctxNow ? ctxNow.toLocaleString() : "—"} tokens</div>
       </div>
     </div>
@@ -1015,11 +1080,10 @@ async function poll() {
     }
     updateDocked();
     renderModel();
-    renderKV();
     renderRoster();
     renderStats();
     fetchGpu().then(() => { tickGpuHistory(); renderGpu(); });
-    fetchMetrics().then(renderMetrics).then(tickActivity);
+    fetchMetrics().then(renderContext).then(tickActivity);
   } catch (e) {
     document.getElementById("main-status").textContent = "ERROR";
   }
@@ -1056,6 +1120,61 @@ function renderModel() {
       <span class="stat-value" style="font-size:18px;">${escHtml(model)}</span>
     </div>
     <div class="stat-sub">${data.model ? "active" : "no model loaded"}</div>
+  `;
+}
+
+function renderContext() {
+  const el = document.getElementById("widget-context");
+  if (!el) return;
+  const nCtx = 128000;
+  const ctxNow = metricsData.ctx.length ? metricsData.ctx[metricsData.ctx.length - 1] : 0;
+  const ctxPct = Math.min((ctxNow / nCtx) * 100, 100);
+  const decodeNow = metricsData.decode.length ? metricsData.decode[metricsData.decode.length - 1] : 0;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
+
+  // KV cache section
+  const snaps = data.snapshots;
+  let listHtml = "";
+  if (snaps.length === 0) {
+    listHtml = `<div class="kv-status">no snapshots</div>`;
+  } else {
+    listHtml = `<ul class="kv-list">`;
+    for (const s of snaps) {
+      listHtml += `<li>
+        <span class="kv-name">${escHtml(s.filename)}</span>
+        <span class="kv-size">${fmtSize(s.size)}</span>
+        <span class="kv-age">${fmtAge(s.mtime)}</span>
+      </li>`;
+    }
+    listHtml += `</ul>`;
+  }
+  const hasModel = !!data.model;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:12px">
+      <div>
+        ${ringChartSVG(ctxPct, 80, 8, accent)}
+        <div class="stat-sub" style="text-align:center;margin-top:4px">ctx ${ctxNow ? ctxNow.toLocaleString() : "—"} / ${nCtx.toLocaleString()}</div>
+      </div>
+      <div style="flex:1">
+        <div class="stat-label">Decode (10m)</div>
+        ${sparklineSVG(metricsData.decode, 200, 50, accent, { mode: "relative" })}
+        <div class="stat-sub">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s</div>
+        <div class="stat-label" style="margin-top:8px">Ctx (10m)</div>
+        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)", { mode: "relative" })}
+        <div class="stat-sub">now: ${ctxNow ? ctxNow.toLocaleString() : "—"} tokens</div>
+      </div>
+    </div>
+    <div class="stat-label" style="margin-top:4px">KV Cache</div>
+    ${listHtml}
+    <div class="kv-actions">
+      <button onclick="kvSave()" ${hasModel ? "" : "disabled"}>SAVE</button>
+      <button onclick="kvRestore()" ${hasModel && snaps.length ? "" : "disabled"}>RESTORE</button>
+      <button onclick="kvSwap()" ${hasModel ? "" : "disabled"}>SWAP</button>
+      <button class="danger" onclick="kvErase()" ${hasModel ? "" : "disabled"}>ERASE</button>
+      <button class="danger" onclick="kvPrune()" ${snaps.length ? "" : "disabled"}>PRUNE</button>
+    </div>
+    <div class="kv-status" id="kv-status">—</div>
   `;
 }
 
