@@ -228,13 +228,15 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 .nav .docked-roster li { padding: 0; border-bottom: none; }
 .nav .docked-roster .nav-model { display: flex; align-items: center; gap: 6px; padding: 3px 0 3px 14px; font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
 .nav .docked-roster .nav-model .nm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
-.nav .docked-roster .nav-model.on { color: var(--ink); }
+.nav .docked-roster .nav-model.on { color: var(--ink); font-weight: 600; padding-top: 8px; padding-bottom: 4px; }
 .nav .docked-roster .nav-model.on .nm-dot { background: var(--ok); box-shadow: 0 0 6px var(--accent-glow); }
+.nav .docked-roster .roster-label { font-size: 9px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 1px; padding: 8px 0 2px 14px; margin-top: 6px; border-bottom: 1px solid var(--line-hi); }
 .nav .docked-roster .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .nav .docked-roster .nav-model .nm-port { margin-left: auto; color: var(--ink-mute); }
-.nav .docked-roster .nm-btn { font-family: var(--mono); font-size: 9px; padding: 1px 5px; cursor: pointer; background: var(--bg-elev); color: var(--ink-dim); border: 1px solid var(--line); border-radius: 3px; }
-.nav .docked-roster .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
-.nav .docked-roster .nm-btn:disabled { opacity: 0.5; cursor: default; }
+.nav .docked-roster .nm-btn { background: none; border: none; cursor: pointer; padding: 3px; opacity: 0.5; transition: opacity .15s; display: flex; align-items: center; } 
+.nav .docked-roster .nm-btn:hover { opacity: 1; }
+.nav .docked-roster .nm-btn.danger { color: var(--red); }
+.nav .docked-roster .nav-model.dim { color: var(--ink-dim); opacity: 0.5; }
 .nav .docked-title { font-weight: 600; }
 .docked-roster-toggle {
   display: inline-block;
@@ -753,12 +755,13 @@ class WidgetSystem {
         const others = presets.filter(p => p.name !== loaded);
         const rows = [];
         if (loaded) {
-          rows.push(`<li class="nav-model on" data-model="${escHtml(loaded)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(loaded)}">${escHtml(shortName(loaded))}</span><button class="nm-btn" onclick="unloadModel()" title="Unload">UNLOAD</button></li>`);
+          rows.push(`<li class="roster-label">LOADED</li>`);
+          rows.push(`<li class="nav-model on" data-model="${escHtml(loaded)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(loaded)}">${escHtml(shortName(loaded))}</span><button class="nm-btn danger roster-unload" onclick="unloadModel()" title="Unload"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2L16 12H8.5L16 22"/><rect x="3" y="10" width="4" height="4" rx="1"/></svg></button></li>`);
         } else {
           rows.push(`<li class="nav-model dim">no model loaded</li>`);
         }
         for (const p of others) {
-          rows.push(`<li class="nav-model" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load">LOAD</button></li>`);
+          rows.push(`<li class="nav-model dim" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></li>`);
         }
         body = `<div class="docked-body">
           <ul class="docked-roster" id="roster-sublist">${rows.join("")}</ul>
