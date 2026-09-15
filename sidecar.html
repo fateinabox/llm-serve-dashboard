@@ -292,23 +292,25 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 .justify-between { justify-content: space-between; }
 .items-center { align-items: center; }
 
-/* Grafana link */
-.grafana-link { color: var(--cyan); text-decoration: none; font-size: 13px; margin-left: auto; }
-.grafana-link:hover { text-decoration: underline; }
-
 /* Alt layout link */
 .alt-link { position: fixed; bottom: 20px; right: 20px; background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-dim); padding: 8px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; z-index: 100; }
 .alt-link:hover { background: var(--bg-elev-2); color: var(--ink); }
 
 /* System resource widget */
-.sys-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(16px * var(--widget-scale, 1)); margin-bottom: calc(16px * var(--widget-scale, 1)); }
-.sys-card { padding: 12px; background: var(--bg-elev-2); border-radius: 8px; text-align: center; }
-.sys-value { font-family: var(--mono); font-size: calc(18px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); margin-bottom: calc(4px * var(--widget-scale, 1)); }
-.sys-label { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
-
-/* VRAM tracking */
-.vram-track { height: calc(8px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; margin-top: calc(8px * var(--widget-scale, 1)); }
-.vram-fill { height: 100%; background: var(--cyan); transition: width .3s ease-out; }
+.sys-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(12px * var(--widget-scale, 1)); }
+.sys-card { padding: calc(12px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 8px; }
+.sys-card-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: calc(8px * var(--widget-scale, 1)); }
+.sys-card-label { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.sys-card-value { font-family: var(--mono); font-size: calc(16px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); }
+.sys-card-sub { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-dim); margin-top: calc(2px * var(--widget-scale, 1)); }
+.sys-bar { height: calc(6px * var(--widget-scale, 1)); background: var(--bg-elev); border-radius: 3px; overflow: hidden; margin-top: calc(8px * var(--widget-scale, 1)); }
+.sys-bar-fill { height: 100%; border-radius: 3px; transition: width .3s ease-out; }
+.sys-bar-fill.cyan { background: var(--cyan); }
+.sys-bar-fill.amber { background: var(--amber); }
+.sys-bar-fill.purple { background: #a78bfa; }
+.sys-temps { display: flex; flex-wrap: wrap; gap: calc(6px * var(--widget-scale, 1)); }
+.sys-temp-chip { font-family: var(--mono); font-size: calc(11px * var(--widget-scale, 1)); padding: calc(3px * var(--widget-scale, 1)) calc(6px * var(--widget-scale, 1)); background: var(--bg-elev); border-radius: 4px; color: var(--ink-dim); }
+.sys-temp-chip span { color: var(--ink); font-weight: 600; }
 
 /* Confirmation dialog */
 .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 250; display: flex; align-items: center; justify-content: center; }
@@ -338,7 +340,6 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
     <button class="theme-toggle" id="theme-toggle" title="Cycle theme">◐</button>
     <button class="theme-toggle" onclick="WidgetSystem.resetLayout()" title="Reset layout">↺</button>
     <button class="theme-toggle" onclick="WidgetSystem.toggleSettings()" title="Settings">⚙</button>
-    <a class="grafana-link" href="http://localhost:3001/d/llm-serve" target="_blank">Grafana →</a>
   </div>
 
   <!-- Settings Backdrop -->
@@ -1150,10 +1151,10 @@ function sparklineSVG(data, color = "var(--cyan)") {
   </svg>`;
 }
 
-function layeredRingsSVG(layers, size = 60) {
+function layeredRingsSVG(layers, size = 100) {
   const cx = size / 2;
   const cy = size / 2;
-  const radii = [size * 0.35, size * 0.55, size * 0.75];
+  const radii = [size * 0.25, size * 0.4, size * 0.48];
   
   let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
   
@@ -1205,19 +1206,23 @@ const _rosterSkeleton = `
 const _systemSkeleton = `
   <div class="sys-grid">
     <div class="sys-card">
-      <div class="sys-value sys-ram-val">0 GB</div>
-      <div class="sys-label sys-ram-label">RAM (0%)</div>
-      <div class="vram-track"><div class="vram-fill sys-ram-fill" style="width:0%;background:var(--cyan)"></div></div>
+      <div class="sys-card-header"><span class="sys-card-label">RAM</span><span class="sys-card-value sys-ram-val">—</span></div>
+      <div class="sys-card-sub sys-ram-sub">0 / 0 GB</div>
+      <div class="sys-bar"><div class="sys-bar-fill cyan sys-ram-fill" style="width:0%"></div></div>
     </div>
     <div class="sys-card">
-      <div class="sys-value sys-cpu-val">0%</div>
-      <div class="sys-label sys-cpu-label">CPU</div>
-      <div class="vram-track"><div class="vram-fill sys-cpu-fill" style="width:0%;background:var(--amber)"></div></div>
+      <div class="sys-card-header"><span class="sys-card-label">CPU</span><span class="sys-card-value sys-cpu-val">—</span></div>
+      <div class="sys-card-sub sys-cpu-sub">load —</div>
+      <div class="sys-bar"><div class="sys-bar-fill amber sys-cpu-fill" style="width:0%"></div></div>
     </div>
-    <div class="sys-card sys-vram-card" style="display:none">
-      <div class="sys-value sys-vram-val">0 / 0 GB</div>
-      <div class="sys-label sys-vram-label">VRAM (0%)</div>
-      <div class="vram-track"><div class="vram-fill sys-vram-fill" style="width:0%;background:var(--cyan)"></div></div>
+    <div class="sys-card">
+      <div class="sys-card-header"><span class="sys-card-label">Disk</span><span class="sys-card-value sys-disk-val">—</span></div>
+      <div class="sys-card-sub sys-disk-sub">0 / 0 GB</div>
+      <div class="sys-bar"><div class="sys-bar-fill purple sys-disk-fill" style="width:0%"></div></div>
+    </div>
+    <div class="sys-card">
+      <div class="sys-card-header"><span class="sys-card-label">Temps</span></div>
+      <div class="sys-temps sys-temps-row"><span class="sys-temp-chip">—</span></div>
     </div>
   </div>
 `;
@@ -1258,8 +1263,8 @@ const _ctxSparseOrder = (() => {
 
 // Pre-built GPU rings skeleton (3 circles, 0% fill)
 const _gpuRingsSkeleton = (() => {
-  const size = 60, cx = 30, cy = 30;
-  const radii = [size * 0.35, size * 0.55, size * 0.75];
+  const size = 100, cx = 50, cy = 50;
+  const radii = [size * 0.25, size * 0.4, size * 0.48]; // 25, 40, 48
   let svg = `<svg class="gpu-rings-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
   radii.forEach((r, i) => {
     const c = 2 * Math.PI * r;
@@ -1322,11 +1327,41 @@ function renderActivity() {
   if (c) c.textContent = ctxFill.toFixed(0) + "%";
 }
 
-// Cumulative/smoothed prompt-ingestion hold: the raw ingest pct is a per-request
-// ramp that snaps back to 0 between requests. Hold the peak and decay it smoothly
-// so the grid fills up during ingestion and eases down afterward.
-let _promptIngestHold = 0;
-const _INGEST_DECAY = 0.85;  // per-poll fraction retained when not actively ingesting
+
+// Sparse fill: cells light up in a fixed pseudo-random order (not a linear sweep),
+// so the grid reads as scattered occupancy rather than a growing bar.
+function _fillSparse(blocks, n) {
+  if (!blocks) return;
+  const order = _ctxSparseOrder;
+  for (let i = 0; i < 256; i++) {
+    const cell = blocks.children[i];
+    if (order[i] < n) {
+      cell.classList.add("filled");
+    } else {
+      cell.classList.remove("filled");
+    }
+  }
+}
+
+// Prompt grid interpolation: /slots updates coarsely (batch boundaries), so we
+// animate the fill between poll values for a smooth 0→100% visual.
+let _promptAnim = null;
+let _promptFrom = 0, _promptTo = 0, _promptAnimStart = 0;
+const _PROMPT_LERP_MS = 1500;
+
+function _promptAnimate() {
+  const elapsed = performance.now() - _promptAnimStart;
+  const t = Math.min(elapsed / _PROMPT_LERP_MS, 1);
+  const eased = 1 - Math.pow(1 - t, 2); // ease-out quad
+  const val = _promptFrom + (_promptTo - _promptFrom) * eased;
+  const el = document.getElementById("widget-context");
+  if (el) _fillSparse(el.querySelector("#prompt-blocks"), Math.round((val / 100) * 256));
+  if (t < 1) {
+    _promptAnim = requestAnimationFrame(_promptAnimate);
+  } else {
+    _promptAnim = null;
+  }
+}
 
 function renderContext() {
   const el = document.getElementById("widget-context");
@@ -1334,17 +1369,8 @@ function renderContext() {
 
   // Context grid: true context fill from the worker's n_tokens_max / n_ctx.
   const ctxFill = currentData.ctx_fill_pct || 0;
-  // Prompt grid: smoothed prompt-ingestion progress. Track the peak of the
-  // per-request ramp and decay it, so the grid rises during prefill and eases
-  // down after, instead of snapping to 0 between requests.
-  const rawIngest = currentData.prompt_ingest_pct || 0;
-  if (rawIngest > _promptIngestHold) {
-    _promptIngestHold = rawIngest;
-  } else {
-    _promptIngestHold = _promptIngestHold * _INGEST_DECAY;
-    if (_promptIngestHold < 0.5) _promptIngestHold = 0;
-  }
-  const promptIngest = _promptIngestHold;
+  // Prompt grid: raw prompt-processing percentage (0-100%) from router /slots.
+  const promptIngest = currentData.prompt_ingest_pct || 0;
 
   const ctxN = Math.round((ctxFill / 100) * 256);
   const promptN = Math.round((promptIngest / 100) * 256);
@@ -1368,22 +1394,25 @@ function renderContext() {
     `;
   }
 
-  // Sparse fill: cells light up in a fixed pseudo-random order (not a linear sweep),
-  // so the grid reads as scattered occupancy rather than a growing bar.
-  const fillSparse = (blocks, n) => {
-    if (!blocks) return;
-    const order = _ctxSparseOrder;
-    for (let i = 0; i < 256; i++) {
-      const cell = blocks.children[i];
-      if (order[i] < n) {
-        cell.classList.add("filled");
-      } else {
-        cell.classList.remove("filled");
-      }
+  _fillSparse(el.querySelector("#ctx-blocks"), ctxN);
+
+  // Prompt grid: interpolate to the new target for smooth fill
+  if (promptIngest !== _promptTo) {
+    // If mid-animation, use current interpolated position as new start
+    let current = _promptTo;
+    if (_promptAnim) {
+      const t = Math.min((performance.now() - _promptAnimStart) / _PROMPT_LERP_MS, 1);
+      const eased = 1 - Math.pow(1 - t, 2);
+      current = _promptFrom + (_promptTo - _promptFrom) * eased;
     }
-  };
-  fillSparse(el.querySelector("#ctx-blocks"), ctxN);
-  fillSparse(el.querySelector("#prompt-blocks"), promptN);
+    _promptFrom = current;
+    _promptTo = promptIngest;
+    _promptAnimStart = performance.now();
+    if (_promptAnim) cancelAnimationFrame(_promptAnim);
+    _promptAnim = requestAnimationFrame(_promptAnimate);
+  } else {
+    _fillSparse(el.querySelector("#prompt-blocks"), promptN);
+  }
 }
 
 function renderRoster() {
@@ -1457,6 +1486,11 @@ function renderGpu() {
           <div class="gpu-stat-label">Utilization</div>
         </div>
       </div>
+      <div class="sparkline-row">
+        <span class="sparkline-label">Util</span>
+        <div class="sparkline-container" id="gpu-util-spark"></div>
+        <span class="sparkline-value" id="gpu-util-val">—</span>
+      </div>
       <div id="gpu-rings">${_gpuRingsSkeleton}</div>
     `;
     clearWidgetLoading("gpu");
@@ -1469,13 +1503,21 @@ function renderGpu() {
     vals[1].textContent = (gpuData.power_w || 0).toFixed(1) + "W";
     vals[2].textContent = (gpuData.gfx_percent || 0) + "%";
   }
-  
+
+  // Update sparkline
+  const sparkEl = el.querySelector("#gpu-util-spark");
+  const sparkVal = el.querySelector("#gpu-util-val");
+  if (sparkEl && _gpuUtilHistory.length >= 2) {
+    sparkEl.innerHTML = sparklineSVG(_gpuUtilHistory, "#a78bfa");
+    if (sparkVal) sparkVal.textContent = (gpuData.gfx_percent || 0) + "%";
+  }
+
   // Update rings in place
   // Scale rings SVG to match widget scale
   const ringsSvg = el.querySelector(".gpu-rings-svg");
   if (ringsSvg) {
     const scale = parseFloat(getComputedStyle(el.closest(".widget") || el).getPropertyValue("--widget-scale")) || 1;
-    const sz = Math.round(60 * scale);
+    const sz = Math.round(100 * scale);
     ringsSvg.setAttribute("width", sz);
     ringsSvg.setAttribute("height", sz);
   }
@@ -1510,40 +1552,52 @@ function renderSystem() {
   
   const ramPct = systemData.ram_used_pct || 0;
   const cpuPct = systemData.cpu_percent || 0;
-  const gpuVramUsedMb = (gpuData?.vram_used_mib || 0) * 1.048576;
-  const gpuVramTotalMb = (gpuData?.vram_total_mib || 0) * 1.048576;
-  const vramPct = gpuVramTotalMb > 0 ? (gpuVramUsedMb / gpuVramTotalMb) * 100 : 0;
-  const key = `${ramPct.toFixed(0)}|${cpuPct.toFixed(0)}|${vramPct.toFixed(0)}`;
+  const diskPct = systemData.disk_used_pct || 0;
+  const load1 = systemData.load_1m || 0;
+  const cpuCount = systemData.cpu_count || 1;
+  const key = `${ramPct.toFixed(0)}|${cpuPct.toFixed(0)}|${diskPct.toFixed(0)}|${load1.toFixed(1)}`;
   if (_last.system === key) return;
   _last.system = key;
   
   if (!el.querySelector(".sys-ram-val")) el.innerHTML = _systemSkeleton;
   
+  // RAM
   const ramVal = el.querySelector(".sys-ram-val");
-  const ramLabel = el.querySelector(".sys-ram-label");
+  const ramSub = el.querySelector(".sys-ram-sub");
   const ramFill = el.querySelector(".sys-ram-fill");
-  const cpuVal = el.querySelector(".sys-cpu-val");
-  const cpuFill = el.querySelector(".sys-cpu-fill");
-  const vramCard = el.querySelector(".sys-vram-card");
-  const vramVal = el.querySelector(".sys-vram-val");
-  const vramLabel = el.querySelector(".sys-vram-label");
-  const vramFill = el.querySelector(".sys-vram-fill");
-  
-  if (ramVal) ramVal.textContent = (systemData.ram_used_mb || 0).toFixed(0) + " GB";
-  if (ramLabel) ramLabel.textContent = `RAM (${ramPct.toFixed(0)}%)`;
+  if (ramVal) ramVal.textContent = ramPct.toFixed(0) + "%";
+  if (ramSub) ramSub.textContent = `${(systemData.ram_used_mb / 1024).toFixed(1)} / ${(systemData.ram_total_mb / 1024).toFixed(1)} GB`;
   if (ramFill) ramFill.style.width = ramPct + "%";
+  
+  // CPU
+  const cpuVal = el.querySelector(".sys-cpu-val");
+  const cpuSub = el.querySelector(".sys-cpu-sub");
+  const cpuFill = el.querySelector(".sys-cpu-fill");
   if (cpuVal) cpuVal.textContent = cpuPct.toFixed(0) + "%";
+  if (cpuSub) cpuSub.textContent = `load ${load1.toFixed(2)} (${cpuCount} cores)`;
   if (cpuFill) cpuFill.style.width = cpuPct + "%";
   
-  if (vramCard) {
-    if (gpuVramTotalMb > 0) {
-      vramCard.style.display = "";
-      if (vramVal) vramVal.textContent = `${(gpuVramUsedMb / 1024).toFixed(1)} / ${(gpuVramTotalMb / 1024).toFixed(1)} GB`;
-      if (vramLabel) vramLabel.textContent = `VRAM (${vramPct.toFixed(0)}%)`;
-      if (vramFill) vramFill.style.width = vramPct + "%";
-    } else {
-      vramCard.style.display = "none";
-    }
+  // Disk
+  const diskVal = el.querySelector(".sys-disk-val");
+  const diskSub = el.querySelector(".sys-disk-sub");
+  const diskFill = el.querySelector(".sys-disk-fill");
+  if (diskVal) diskVal.textContent = diskPct.toFixed(0) + "%";
+  if (diskSub) diskSub.textContent = `${systemData.disk_used_gb} / ${systemData.disk_total_gb} GB`;
+  if (diskFill) diskFill.style.width = diskPct + "%";
+  
+  // Temps: show top 4 most relevant sensors
+  const tempsRow = el.querySelector(".sys-temps-row");
+  if (tempsRow && systemData.temps) {
+    const priority = ["Composite", "Sensor 1", "edge", "mem", "junction", "Tctl"];
+    const entries = Object.entries(systemData.temps)
+      .sort((a, b) => {
+        const ia = priority.indexOf(a[0]), ib = priority.indexOf(b[0]);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      })
+      .slice(0, 4);
+    tempsRow.innerHTML = entries.map(([label, val]) =>
+      `<span class="sys-temp-chip">${label} <span>${val.toFixed(0)}°</span></span>`
+    ).join("");
   }
 }
 
@@ -1668,12 +1722,15 @@ async function fetchMetrics() {
   }
 }
 
+let _gpuUtilHistory = [];
+
 async function fetchGpu() {
   try {
     const res = await apiFetch("/api/gpu");
-    console.log("GPU API response:", res);
     if (res && typeof res === 'object') {
       gpuData = res;
+      _gpuUtilHistory.push(res.gfx_percent || 0);
+      if (_gpuUtilHistory.length > MAX_POINTS) _gpuUtilHistory.shift();
       WidgetSystem.emit(EVT.GPU_UPDATE, gpuData);
     } else {
       console.warn("Invalid GPU data format:", res);

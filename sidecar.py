@@ -133,7 +133,7 @@ def _http_text(port, path, timeout=5):
         return ""
 
 
-def _parse_prometheus(text):
+def _parse_metrics(text):
     """Parse Prometheus exposition text into {metric_name: value}.
     Ignores comments, blank lines, and label-qualified series (keeps the bare name)."""
     out = {}
@@ -174,7 +174,7 @@ def worker_metrics():
     port = _worker_port()
     if not port:
         return {}
-    metrics = _parse_prometheus(_http_text(port, "/metrics"))
+    metrics = _parse_metrics(_http_text(port, "/metrics"))
     props = _http_json(port, "/props")
     if not metrics and not props:
         return {}
@@ -189,10 +189,10 @@ def worker_metrics():
     spec_acc = metrics.get("llamacpp:spec_decode_num_accepted_tokens_total", 0)
     spec_draft = metrics.get("llamacpp:spec_decode_num_draft_tokens_total", 0)
 
-    # Prompt-ingestion progress: the router's /slots exposes n_prompt_tokens_processed
-    # (tokens of the current prompt already ingested) and n_prompt_tokens_total. This is
-    # the per-request ingestion progress — 0 when idle, ramps to 100% during prefill.
-    prompt_processed = prompt_total = 0
+    # Prompt-ingestion progress + current context usage from the router's /slots.
+    # n_prompt_tokens = current KV cache occupancy for the slot (not a high-water mark).
+    # n_prompt_tokens_processed / n_prompt_tokens_total = per-request prefill progress.
+    prompt_processed = prompt_total = slot_prompt_tokens = 0
     model = loaded_model()
     if model:
         try:
@@ -201,14 +201,27 @@ def worker_metrics():
             if slots:
                 prompt_processed = slots[0].get("n_prompt_tokens_processed", 0)
                 prompt_total = slots[0].get("n_prompt_tokens_total", 0)
+                slot_prompt_tokens = slots[0].get("n_prompt_tokens", 0)
         except Exception:
             pass
+
+    # Context fill: use slot's current token count (actual KV cache usage),
+    # fall back to n_tokens_max / n_ctx if slot data unavailable.
+    if slot_prompt_tokens and n_ctx:
+        ctx_used = slot_prompt_tokens
+        ctx_pct = round(100.0 * slot_prompt_tokens / n_ctx, 1)
+    elif kv_ratio and n_ctx:
+        ctx_used = int(kv_ratio * n_ctx)
+        ctx_pct = round(kv_ratio * 100, 1)
+    else:
+        ctx_used = 0
+        ctx_pct = 0
 
     return {
         "port": port,
         "n_ctx": n_ctx,
-        "ctx_used_tokens": int(n_tokens_max) if n_tokens_max else int(kv_ratio * n_ctx),
-        "ctx_fill_pct": round(kv_ratio * 100, 1) if n_ctx else 0,
+        "ctx_used_tokens": ctx_used,
+        "ctx_fill_pct": ctx_pct,
         "decode_tps": round(decode_tps, 1),
         "decode_tps_age_s": round(decode_age, 1) if decode_age else None,
         "prompt_tps": round(prompt_tps, 1),
@@ -448,6 +461,24 @@ def detect_gpu():
     return {"vendor": vendor, "name": name, **metrics}
 
 
+def _active_llama_server_unit():
+    """Return the active llama-server@*.service instance name, or None."""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["systemctl", "list-units", "llama-server@*.service",
+             "--state=active", "--no-legend"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in r.stdout.splitlines():
+            parts = line.split()
+            if parts and parts[0].endswith(".service"):
+                return parts[0]
+    except Exception:
+        pass
+    return None
+
+
 # --- HTTP handler ---
 
 class SidecarHandler(http.server.BaseHTTPRequestHandler):
@@ -518,19 +549,25 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             } for s in slots]
             self._json(200, out)
         elif path == "/api/log":
-            # Tail the llama-server log via journalctl
-            # Try direct first (if llama is in systemd-journal group), then sudo fallback
+            # Tail the active llama-server@*.service log via journalctl.
+            # The router runs under a templated unit; follow whichever instance is
+            # active rather than hardcoding a backend name (turbo/vulkan/etc. change).
+            # Try direct first (works if llama is in systemd-journal group), then sudo.
             import subprocess
             try:
+                unit = _active_llama_server_unit()
+                if not unit:
+                    self._json(404, {"error": "no active llama-server@*.service instance"})
+                    return
                 # Direct journalctl (works if llama is in systemd-journal group)
                 r = subprocess.run(
-                    ["journalctl", "-u", "llama-server@vulkan", "--no-pager", "-n", "200"],
+                    ["journalctl", "-u", unit, "--no-pager", "-n", "200"],
                     capture_output=True, text=True, timeout=10
                 )
                 if r.returncode != 0 or not r.stdout.strip():
                     # Fallback: sudo journalctl
                     r = subprocess.run(
-                        ["sudo", "-n", "/usr/bin/journalctl", "-u", "llama-server@vulkan", "--no-pager", "-n", "200"],
+                        ["sudo", "-n", "/usr/bin/journalctl", "-u", unit, "--no-pager", "-n", "200"],
                         capture_output=True, text=True, timeout=10
                     )
                 if r.returncode != 0:
@@ -544,50 +581,35 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             try:
                 mem = psutil.virtual_memory()
                 cpu_pct = psutil.cpu_percent(interval=0.1)
+                disk = psutil.disk_usage("/")
+                load = os.getloadavg()
+                # Clean up temp sensor keys: strip ugly psutil internal labels
                 temps = {}
                 for name, sensor in (psutil.sensors_temperatures() or {}).items():
                     for t in sensor:
-                        key = t.label or f"{name}/{t.index}"
-                        temps[key] = t.current
+                        key = t.label or name
+                        # Strip psutil internal method references
+                        key = key.split("/")[0] if "/" in key and "built-in" in key else key
+                        temps[key] = round(t.current, 1)
                 self._json(200, {
-                    "ram_used_mb": mem.used / (1024 * 1024),
-                    "ram_total_mb": mem.total / (1024 * 1024),
+                    "ram_used_mb": round(mem.used / (1024 * 1024), 1),
+                    "ram_total_mb": round(mem.total / (1024 * 1024), 1),
                     "ram_used_pct": mem.percent,
                     "cpu_percent": cpu_pct,
+                    "cpu_count": os.cpu_count(),
+                    "load_1m": round(load[0], 2),
+                    "load_5m": round(load[1], 2),
+                    "load_15m": round(load[2], 2),
+                    "disk_used_gb": round(disk.used / (1024**3), 1),
+                    "disk_total_gb": round(disk.total / (1024**3), 1),
+                    "disk_used_pct": round(100.0 * disk.used / disk.total, 1),
                     "temps": temps,
                 })
             except Exception as e:
                 self._json(500, {"error": str(e)})
         elif path == "/health":
             self._json(200, {"status": "ok"})
-        elif path.startswith("/api/prometheus/query_range"):
-            # Proxy Prometheus range queries
-            query = self.path[len("/api/prometheus/query_range"):]
-            if query.startswith("?"):
-                query = query[1:]
-            try:
-                req = urllib.request.Request(
-                    f"http://127.0.0.1:9090/api/v1/query_range?{query}",
-                    headers={"User-Agent": "curl"},
-                )
-                resp = urllib.request.urlopen(req, timeout=10)
-                self._json(200, json.loads(resp.read().decode("utf-8", errors="replace")))
-            except Exception as e:
-                self._json(502, {"error": str(e)})
-        elif path.startswith("/api/prometheus/query"):
-            # Proxy Prometheus instant queries
-            query = self.path[len("/api/prometheus/query"):]
-            if query.startswith("?"):
-                query = query[1:]
-            try:
-                req = urllib.request.Request(
-                    f"http://127.0.0.1:9090/api/v1/query?{query}",
-                    headers={"User-Agent": "curl"},
-                )
-                resp = urllib.request.urlopen(req, timeout=10)
-                self._json(200, json.loads(resp.read().decode("utf-8", errors="replace")))
-            except Exception as e:
-                self._json(502, {"error": str(e)})
+
         else:
             self._json(404, {"error": "not found"})
 

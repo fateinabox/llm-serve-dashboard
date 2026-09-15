@@ -84,64 +84,6 @@ a { color: var(--accent); text-decoration: none; }
   overflow-y: auto;
 }
 
-/* === Timeline === */
-.timeline {
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 20px;
-}
-.timeline-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.timeline-header .t-title {
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
-}
-.timeline-header .t-range {
-  font-size: 11px;
-  color: var(--ink-mute);
-  font-family: var(--mono);
-}
-.timeline-track {
-  position: relative;
-  height: 60px;
-  background: var(--bg-elev-2);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.timeline-bar {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, var(--accent-glow), var(--accent));
-  opacity: 0.6;
-  border-radius: 2px;
-}
-.timeline-cursor {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--accent);
-  cursor: pointer;
-}
-.timeline-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
-  font-size: 10px;
-  color: var(--ink-mute);
-  font-family: var(--mono);
-}
-
 /* === Model cards === */
 .model-grid {
   display: grid;
@@ -252,30 +194,6 @@ a { color: var(--accent); text-decoration: none; }
   font-family: var(--mono);
 }
 
-/* === Rail === */
-.rail-section {
-  margin-bottom: 20px;
-}
-.rail-section .rs-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ink-mute);
-  margin-bottom: 8px;
-}
-.rail-stat {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  font-size: 12px;
-  font-family: var(--mono);
-  border-bottom: 1px solid var(--line);
-}
-.rail-stat:last-child { border-bottom: none; }
-.rail-stat .rs-label { color: var(--ink-dim); }
-.rail-stat .rs-value { color: var(--ink); }
-
 /* === Responsive === */
 @media (max-width: 900px) {
   .main { grid-template-columns: 1fr; }
@@ -293,28 +211,11 @@ a { color: var(--accent); text-decoration: none; }
   <span class="status" id="status">CONNECTING</span>
   <div class="links">
     <a href="/" target="_blank">Sidecar</a>
-    <a href="http://localhost:3001/d/llm-serve" target="_blank">Grafana</a>
   </div>
 </div>
 
 <div class="main">
   <div class="content">
-    <!-- Timeline (unique capability) -->
-    <div class="timeline">
-      <div class="timeline-header">
-        <span class="t-title">Activity Timeline</span>
-        <span class="t-range" id="timeline-range">— last 1h —</span>
-      </div>
-      <div class="timeline-track" id="timeline-track">
-        <div class="timeline-bar" id="timeline-bar" style="left:0%;width:100%;"></div>
-        <div class="timeline-cursor" id="timeline-cursor" style="left:50%;"></div>
-      </div>
-      <div class="timeline-labels">
-        <span id="tl-start">—</span>
-        <span id="tl-end">—</span>
-      </div>
-    </div>
-
     <!-- Model grid -->
     <div class="model-grid" id="model-grid">
       <!-- Rendered by JS -->
@@ -338,22 +239,11 @@ a { color: var(--accent); text-decoration: none; }
       <div class="kv-status" id="kv-status">—</div>
     </div>
 
-    <!-- Stats rail -->
-    <div class="rail-section">
-      <div class="rs-title">Live Stats</div>
-      <div id="stats-rail">
-        <div class="rail-stat"><span class="rs-label">decode</span><span class="rs-value" id="stat-decode">—</span></div>
-        <div class="rail-stat"><span class="rs-label">prompt</span><span class="rs-value" id="stat-prompt">—</span></div>
-        <div class="rail-stat"><span class="rs-label">ctx tokens</span><span class="rs-value" id="stat-ctx">—</span></div>
-        <div class="rail-stat"><span class="rs-label">requests</span><span class="rs-value" id="stat-reqs">—</span></div>
-      </div>
-    </div>
   </div>
 </div>
 
 <script>
 let data = { model: null, snapshots: [], presets: [], others: [] };
-let timelineData = [];
 
 function escHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -379,8 +269,6 @@ async function poll() {
     document.getElementById("status").textContent = "LIVE";
     renderModelGrid();
     renderKV();
-    fetchStats();
-    updateTimeline();
   } catch (e) {
     document.getElementById("status").textContent = "ERROR";
   }
@@ -437,58 +325,6 @@ function renderKV() {
       btn.disabled = snaps.length === 0;
     }
   });
-}
-
-async function fetchStats() {
-  try {
-    const [r1, r2, r3, r4] = await Promise.all([
-      fetch("/api/prometheus/query?query=llamacpp:predicted_tokens_seconds").then(r => r.json()),
-      fetch("/api/prometheus/query?query=llamacpp:prompt_tokens_seconds").then(r => r.json()),
-      fetch("/api/prometheus/query?query=llamacpp:n_tokens_max").then(r => r.json()),
-      fetch("/api/prometheus/query?query=llamacpp:requests_processing").then(r => r.json()),
-    ]);
-    document.getElementById("stat-decode").textContent = r1.data?.result?.[0]?.value?.[1] || "0";
-    document.getElementById("stat-prompt").textContent = r2.data?.result?.[0]?.value?.[1] || "0";
-    document.getElementById("stat-ctx").textContent = r3.data?.result?.[0]?.value?.[1] || "0";
-    document.getElementById("stat-reqs").textContent = r4.data?.result?.[0]?.value?.[1] || "0";
-  } catch {
-    document.getElementById("stat-decode").textContent = "—";
-  }
-}
-
-// === Timeline (unique capability) ===
-function updateTimeline() {
-  // Fetch range query for decode over last 1h via sidecar proxy
-  fetch("/api/prometheus/query_range?query=llamacpp:predicted_tokens_seconds&start=" +
-    (Date.now() / 1000 - 3600) + "&end=" + (Date.now() / 1000) + "&step=60")
-    .then(r => r.json())
-    .then(d => {
-      const result = d.data?.result?.[0]?.values || [];
-      if (result.length === 0) return;
-      timelineData = result;
-      const max = Math.max(...result.map(v => parseFloat(v[1])), 1);
-      const now = Date.now() / 1000;
-      const start = now - 3600;
-
-      // Render bars
-      const track = document.getElementById("timeline-track");
-      let bars = "";
-      for (const [ts, val] of result) {
-        const pct = (parseFloat(val) / max) * 100;
-        const left = ((ts - start) / 3600) * 100;
-        bars += `<div class="timeline-bar" style="left:${left}%;width:1.6%;opacity:${0.2 + (pct / 100) * 0.6};"></div>`;
-      }
-      // Replace the default bar with individual bars
-      const defaultBar = document.getElementById("timeline-bar");
-      if (defaultBar) defaultBar.remove();
-      track.insertAdjacentHTML("afterbegin", bars);
-
-      // Labels
-      document.getElementById("tl-start").textContent = new Date(start * 1000).toLocaleTimeString();
-      document.getElementById("tl-end").textContent = new Date(now * 1000).toLocaleTimeString();
-      document.getElementById("timeline-range").textContent = "last 1h";
-    })
-    .catch(() => {});
 }
 
 // === KV actions ===
