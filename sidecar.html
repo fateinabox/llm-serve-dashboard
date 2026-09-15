@@ -159,8 +159,8 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 .stat-sub { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-dim); margin-top: calc(4px * var(--widget-scale, 1)); }
 
 /* Context grid */
-.ctx-grid-container { display: flex; gap: calc(20px * var(--widget-scale, 1)); height: calc(200px * var(--widget-scale, 1)); }
-.ctx-grid-col { flex: 1; position: relative; background: var(--bg-elev-2); border-radius: 8px; overflow: hidden; padding: calc(12px * var(--widget-scale, 1)); }
+.ctx-grid-container { display: flex; gap: calc(20px * var(--widget-scale, 1)); }
+.ctx-grid-col { flex: 1; position: relative; background: var(--bg-elev-2); border-radius: 8px; overflow: hidden; padding: calc(12px * var(--widget-scale, 1)); display: flex; flex-direction: column; }
 .blk-grid-wrap {
   display: grid;
   grid-template-columns: repeat(16, 1fr);
@@ -168,6 +168,8 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
   gap: 1px;
   aspect-ratio: 1 / 1;
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .blk-cell {
   background: var(--bg-elev-2);
@@ -1320,16 +1322,29 @@ function renderActivity() {
   if (c) c.textContent = ctxFill.toFixed(0) + "%";
 }
 
+// Cumulative/smoothed prompt-ingestion hold: the raw ingest pct is a per-request
+// ramp that snaps back to 0 between requests. Hold the peak and decay it smoothly
+// so the grid fills up during ingestion and eases down afterward.
+let _promptIngestHold = 0;
+const _INGEST_DECAY = 0.85;  // per-poll fraction retained when not actively ingesting
+
 function renderContext() {
   const el = document.getElementById("widget-context");
   if (!el) return;
-  
+
   // Context grid: true context fill from the worker's n_tokens_max / n_ctx.
   const ctxFill = currentData.ctx_fill_pct || 0;
-  // Prompt grid: prompt-ingestion progress — the fraction of the current prompt
-  // already ingested (n_prompt_tokens_processed / n_prompt_tokens_total). 0 when idle,
-  // ramps to 100% during prefill.
-  const promptIngest = currentData.prompt_ingest_pct || 0;
+  // Prompt grid: smoothed prompt-ingestion progress. Track the peak of the
+  // per-request ramp and decay it, so the grid rises during prefill and eases
+  // down after, instead of snapping to 0 between requests.
+  const rawIngest = currentData.prompt_ingest_pct || 0;
+  if (rawIngest > _promptIngestHold) {
+    _promptIngestHold = rawIngest;
+  } else {
+    _promptIngestHold = _promptIngestHold * _INGEST_DECAY;
+    if (_promptIngestHold < 0.5) _promptIngestHold = 0;
+  }
+  const promptIngest = _promptIngestHold;
 
   const ctxN = Math.round((ctxFill / 100) * 256);
   const promptN = Math.round((promptIngest / 100) * 256);
