@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.6.0",
+  "plan_file": ".chipmunk/fix-widget-system.md",
+  "burrow": ".chipmunk/burrow/fix-widget-system",
+  "status": "pending",
+  "base_branch": "master",
+  "burrow_branch": "chipmunk/fix-widget-system",
+  "workdir": "/opt/llama.cpp/tools/llm-serve-dashboard",
+  "target": "",
+  "build_cmd": "",
+  "verify_cmd": "",
+  "total_acorns": 0,
+  "current_acorn": null,
+  "completed_acorns": [],
+  "acorns": []
+}
