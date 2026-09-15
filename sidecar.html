@@ -172,8 +172,10 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 
 /* Model roster */
 .model-section { margin-bottom: calc(16px * var(--widget-scale, 1)); padding-bottom: calc(16px * var(--widget-scale, 1)); border-bottom: 1px solid var(--line); }
+.roster-label { font-size: calc(9px * var(--widget-scale, 1)); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 1px; padding: calc(8px * var(--widget-scale, 1)) 0 2px 4px; margin-top: calc(6px * var(--widget-scale, 1)); border-bottom: 1px solid var(--line-hi); }
 .nav-model { display: flex; justify-content: space-between; align-items: center; padding: calc(8px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; margin-top: calc(8px * var(--widget-scale, 1)); }
 .nav-model-name { font-family: var(--mono); font-size: calc(13px * var(--widget-scale, 1)); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(200px * var(--widget-scale, 1)); }
+.roster-loaded { font-weight: 600; background: var(--bg-elev); border-color: var(--line-hi); }
 .nm-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; opacity: .6; transition: opacity .15s; }
 .nm-btn:hover { opacity: 1; }
 .nm-btn.danger { color: var(--red); }
@@ -1175,7 +1177,7 @@ const _activitySkeleton = `
 
 const _rosterSkeleton = `
   <div class="model-section">
-    <span class="stat-label">Loaded</span>
+    <span class="roster-label">Loaded</span>
     <div class="roster-loaded nav-model">
       <span class="nav-model-name roster-model-name">—</span>
       <button class="nm-btn danger roster-unload" onclick="unloadModel()" title="Unload"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2L16 12H8.5L16 22"/><rect x="3" y="10" width="4" height="4" rx="1"/></svg></button>
@@ -1347,7 +1349,7 @@ function renderRoster() {
   const otherPresets = presets.filter(p => p.name !== loadedModel);
   if (presetsEl) {
     presetsEl.innerHTML = otherPresets.map(p => `
-      <li class="nav-model dim" style="display:flex;justify-content:space-between;padding:8px;margin-top:4px;background:var(--bg-elev-2);border-radius:4px">
+      <li class="nav-model dim" style="display:flex;justify-content:space-between;padding:8px;margin-top:4px;background:var(--bg-elev-2);border-radius:4px;opacity:.6">
         <span class="nav-model-name">${escHtml(shortName(p.name))}</span>
         <button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       </li>
