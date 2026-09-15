@@ -88,7 +88,7 @@
   --rose: #ff6b8a;
   --red: #ef4444;
   --mono: "JetBrains Mono", ui-monospace, "Fira Code", Menlo, Consolas, monospace;
-  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sans: "Inter", -apple-system, BlinkMacFont, "Segoe UI", sans-serif;
   --radius: 10px;
   --radius-sm: 6px;
 }
@@ -98,407 +98,193 @@ body {
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
-  line-height: 1.5;
-  min-height: 100vh;
+  line-height: 1.4;
 }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
 
-/* === Layout === */
-.shell {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: 100vh;
-}
+/* Shell layout */
+.shell { display: flex; min-height: 100vh; }
 .nav {
+  width: 200px;
   background: var(--bg-elev);
   border-right: 1px solid var(--line);
-  padding: 20px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.nav h1 {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--ink);
-}
-.nav .live-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.nav .live-indicator .pulse {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--ok);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-.nav .group {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--ink-mute);
-  margin-top: 8px;
-}
-.nav ul { list-style: none; }
-.nav ul li {
-  padding: 4px 0;
-  font-size: 13px;
-  color: var(--ink-dim);
-}
-.nav ul li a { color: var(--ink-dim); }
-.nav ul li a:hover { color: var(--ink); }
-.nav ul li.active a { color: var(--accent); }
-.nav .nav-model {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 0;
-  font-size: 12px;
-  font-family: var(--mono);
-}
-.nav .nav-model .nm-btn {
-  margin-left: auto;
-  font-size: 10px;
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ink-dim);
-  cursor: pointer;
-}
-.nav .nav-model .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
-.nav .nav-model .nm-btn:disabled { opacity: 0.4; cursor: default; }
-.nav .nav-model.dim { color: var(--ink-mute); }
-.nav .nav-model.loaded { color: var(--accent); }
-.nav .other-models { margin-top: 8px; }
-.nav .other-models .nm-toggle {
-  font-size: 11px;
-  color: var(--ink-mute);
-  cursor: pointer;
-  padding: 2px 0;
-}
-.nav .other-models .nm-toggle:hover { color: var(--ink-dim); }
-.nav .other-models .nm-list { display: none; }
-.nav .other-models .nm-list.open { display: block; }
-.nav .other-models .nm-list .nav-model { padding-left: 12px; }
-
-/* === Main === */
-main {
-  padding: 24px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.main-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  padding: 16px;
   flex-shrink: 0;
 }
-.main-header h2 {
-  font-size: 18px;
-  font-weight: 600;
+.live-indicator {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ok); margin-bottom: 8px;
 }
-.main-header .status {
-  font-size: 11px;
-  color: var(--ink-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.main-header .grafana-link {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--accent);
-}
-.theme-toggle {
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--ink-dim);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.pulse { width: 8px; height: 8px; background: var(--ok); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.nav h1 { font-size: 16px; margin-bottom: 16px; color: var(--ink); }
+.group { font-size: 11px; text-transform: uppercase; color: var(--ink-mute); margin-top: 20px; margin-bottom: 8px; letter-spacing: 1px; }
+.nav ul { list-style: none; }
+.nav li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.nav a { color: var(--ink-dim); text-decoration: none; font-size: 13px; display: block; padding: 4px 8px; border-radius: 4px; }
+.nav a:hover { background: var(--bg-elev-2); color: var(--ink); }
 
-/* === Widget grid === */
-.widget-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: min-content;
-  gap: 16px;
-  flex: 1;
-  min-height: 0;
-  align-content: start;
+/* Main content */
+main { flex: 1; padding: 20px; overflow-y: auto; }
+.main-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.main-header h2 { font-size: 20px; color: var(--ink); }
+.status { font-size: 12px; color: var(--ok); font-weight: 600; }
+.theme-toggle, .w-btn { background: var(--bg-elev-2); border: 1px solid var(--line); color: var(--ink-dim); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.theme-toggle:hover, .w-btn:hover { background: var(--bg-elev); color: var(--ink); }
+
+/* Widget grid */
+.widget-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--widget-scale, 1)), 1fr)); gap: calc(20px * var(--widget-scale, 1)); margin-bottom: 20px; }
+.widget { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.widget-span { grid-column: 1 / -1; }
+.widget.dragging { opacity: .5; border-color: var(--accent); }
+.drop-before { box-shadow: inset 0 2px 0 0 var(--cyan); }
+.drop-after { box-shadow: inset 0 -2px 0 0 var(--cyan); }
+.widget.drop-target {
+  outline: 2px dashed var(--cyan);
+  outline-offset: -3px;
 }
-.widget {
-  display: flex;
-  flex-direction: column;
-}
-.widget-span {
-  grid-column: 1 / -1;
-}
-.widget {
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.widget-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-elev-2);
-}
-.widget-header .w-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
-}
-.widget-header .w-controls {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-}
-.widget-header .w-btn {
-  width: 24px; height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ink-mute);
-  cursor: pointer;
-  font-size: 12px;
-}
-.widget-header .w-btn:hover { color: var(--ink); border-color: var(--line-hi); }
-.widget-body {
-  padding: 14px;
-}
+
+/* Widget header */
+.widget-header { display: flex; justify-content: space-between; align-items: center; padding: calc(12px * var(--widget-scale, 1)) calc(16px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-bottom: 1px solid var(--line); cursor: grab; user-select: none; }
+.widget-header:active { cursor: grabbing; }
+.w-title { font-weight: 600; color: var(--ink); font-size: calc(14px * var(--widget-scale, 1)); }
+.w-controls { display: flex; gap: 4px; }
+
+/* Widget body */
+.widget-body { padding: calc(16px * var(--widget-scale, 1)); min-height: calc(100px * var(--widget-scale, 1)); }
 .widget.collapsed .widget-body { display: none; }
-.widget.collapsed .widget-header { border-bottom: none; }
-.widget .widget-header { cursor: grab; }
-.widget .widget-header:active { cursor: grabbing; }
-.widget.dragging { opacity: 0.5; border-color: var(--accent); }
-.widget.drop-before { border-top: 3px solid var(--accent); }
-.widget.drop-after { border-bottom: 3px solid var(--accent); }
-.timeline-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.timeline-header .t-title {
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
-}
-.timeline-header .t-range {
-  font-size: 11px;
-  color: var(--ink-mute);
-  font-family: var(--mono);
-}
-.timeline-track {
-  position: relative;
-  height: 50px;
-  background: var(--bg-elev-2);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.timeline-track svg {
-  width: 100%;
-  height: 100%;
-}
-svg circle {
-  transition: stroke-dasharray 0.8s ease, stroke-dashoffset 0.8s ease, stroke 0.4s ease;
-}
 
-.alt-link {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
-  font-size: 11px;
-  font-family: var(--mono);
-  color: var(--ink-mute);
-  text-decoration: none;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elev);
-}
-.alt-link:hover { color: var(--accent); border-color: var(--accent); }
+/* Stats display */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: calc(8px * var(--widget-scale, 1)) 0; border-bottom: 1px solid var(--line); }
+.stat-label { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.stat-value { font-family: var(--mono); font-size: calc(14px * var(--widget-scale, 1)); font-weight: 600; color: var(--ink); }
+.stat-sub { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-dim); margin-top: calc(4px * var(--widget-scale, 1)); }
+
+/* Context grid */
+.ctx-grid-container { display: flex; gap: calc(20px * var(--widget-scale, 1)); height: calc(200px * var(--widget-scale, 1)); }
+.ctx-grid-col { flex: 1; position: relative; background: var(--bg-elev-2); border-radius: 8px; overflow: hidden; padding: calc(12px * var(--widget-scale, 1)); }
+.ctx-grid-title { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); margin-bottom: calc(8px * var(--widget-scale, 1)); text-transform: uppercase; letter-spacing: .5px; }
+
+/* Sparklines */
+.sparkline-row { display: flex; gap: calc(16px * var(--widget-scale, 1)); align-items: center; padding: calc(8px * var(--widget-scale, 1)) 0; border-bottom: 1px solid var(--line); }
+.sparkline-label { width: calc(80px * var(--widget-scale, 1)); font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.sparkline-container { flex: 1; min-width: 0; height: calc(30px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; position: relative; }
+.sparkline-svg { width: 100%; height: 100%; display: block; }
+.sparkline-value { width: calc(60px * var(--widget-scale, 1)); font-family: var(--mono); font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink); text-align: right; flex-shrink: 0; }
+
+/* Model roster */
+.model-section { margin-bottom: calc(16px * var(--widget-scale, 1)); padding-bottom: calc(16px * var(--widget-scale, 1)); border-bottom: 1px solid var(--line); }
+.nav-model { display: flex; justify-content: space-between; align-items: center; padding: calc(8px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; margin-top: calc(8px * var(--widget-scale, 1)); }
+.nav-model-name { font-family: var(--mono); font-size: calc(13px * var(--widget-scale, 1)); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(200px * var(--widget-scale, 1)); }
+.nm-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; opacity: .6; transition: opacity .15s; }
+.nm-btn:hover { opacity: 1; }
+.nm-btn.danger { color: var(--red); }
+
+/* Settings panel */
+.settings-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); z-index: 200; display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.settings-panel.open { display: block; }
+.settings-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 600; cursor: move; user-select: none; }
+.settings-header button { background: none; border: none; cursor: pointer; color: var(--ink-mute); }
+.settings-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.setting-row { display: flex; align-items: center; gap: 12px; }
+.setting-row label { width: 140px; font-size: 13px; color: var(--ink-dim); }
+.setting-row input, .setting-row select { flex: 1; padding: 6px 8px; background: var(--bg-elev-2); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font-size: 13px; }
+.setting-row input:focus, .setting-row select:focus { outline: none; border-color: var(--accent); }
+.setting-hint { font-size: 10px; color: var(--ink-mute); flex: 1; }
+.settings-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 199; display: none; }
+.settings-backdrop.open { display: block; }
+
+/* Log drawer */
+.log-drawer { position: fixed; bottom: 0; left: 200px; right: 0; height: 300px; background: var(--bg-elev); border-top: 1px solid var(--line); z-index: 150; transition: transform .2s ease-out; }
+.log-drawer.collapsed { transform: translateY(calc(100% - 40px)); }
+.log-drawer-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: var(--bg-elev-2); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; }
+.log-drawer-title { font-size: 12px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.log-drawer-resizer { height: 8px; background: var(--bg-elev-2); border-top: 1px solid var(--line); cursor: ns-resize; }
+.log-drawer-body { height: calc(100% - 48px); overflow-y: auto; padding: 12px; }
+.log-content { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-dim); white-space: pre-wrap; word-break: break-all; }
+
+/* GPU widget */
+.gpu-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(16px * var(--widget-scale, 1)); margin-bottom: calc(16px * var(--widget-scale, 1)); }
+.gpu-stat { text-align: center; padding: calc(12px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 8px; }
+.gpu-stat-value { font-family: var(--mono); font-size: calc(20px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); margin-bottom: calc(4px * var(--widget-scale, 1)); }
+.gpu-stat-label { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+
+/* KV cache panel */
+.kv-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.kv-btn { padding: 6px 12px; background: var(--accent); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.kv-btn:hover { opacity: .9; }
+.kv-btn.danger { background: var(--red); }
+.kv-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Docked widgets in sidebar */
 .nav .docked-widget { cursor: default; }
 .nav .docked-widget .docked-header { cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); padding: 4px 0; }
 .nav .docked-widget .docked-header:hover { color: var(--accent); }
 .nav .docked-widget .docked-body { padding: 4px 0 8px 0; }
-.nav .docked-widget .docked-body ul { list-style: none; padding: 0; margin: 0; }
-.nav .docked-widget .docked-body .nav-model { padding: 3px 0; font-size: 12px; }
-.nav .docked-widget .docked-body .other-models { margin-top: 6px; }
-.nav .docked-widget .docked-body .nm-toggle { font-size: 11px; color: var(--ink-mute); cursor: default; }
-.nav .docked-widget .docked-body .nm-list { display: none; }
-.nav .docked-widget .docked-body .nm-list.open { display: block; }
+.nav .docked-widget .docked-body .stat-row { margin-bottom: 4px; }
+.nav .docked-widget .docked-body .stat-value { font-size: 14px; }
 
-/* === Stat cards === */
-.stat-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-family: var(--mono);
-  color: var(--ink);
-}
-.stat-unit {
-  font-size: 12px;
-  color: var(--ink-dim);
-  font-family: var(--mono);
-}
-.stat-sub {
-  font-size: 11px;
-  color: var(--ink-mute);
-}
-.stat-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-mute);
-  margin-bottom: 4px;
-}
+/* Docked roster — sidebar entries, subclass styling (matches main dashboard nav-model rows) */
+.nav .docked-roster { list-style: none; padding: 0; margin: 0; }
+.nav .docked-roster li { padding: 0; border-bottom: none; }
+.nav .docked-roster .nav-model { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
+.nav .docked-roster .nav-model .nm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
+.nav .docked-roster .nav-model.on { color: var(--ink); }
+.nav .docked-roster .nav-model.on .nm-dot { background: var(--ok); box-shadow: 0 0 6px var(--accent-glow); }
+.nav .docked-roster .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav .docked-roster .nav-model .nm-port { margin-left: auto; color: var(--ink-mute); }
+.nav .docked-roster .nm-btn { font-family: var(--mono); font-size: 9px; padding: 1px 5px; cursor: pointer; background: var(--bg-elev); color: var(--ink-dim); border: 1px solid var(--line); border-radius: 3px; }
+.nav .docked-roster .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
+.nav .docked-roster .nm-btn:disabled { opacity: 0.5; cursor: default; }
 
-/* === Bar === */
-.bar-track {
-  height: 6px;
-  background: var(--line);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-.bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-.bar-fill.cyan { background: var(--cyan); }
-.bar-fill.amber { background: var(--amber); }
-.bar-fill.green { background: var(--ok); }
-.bar-fill.red { background: var(--red); }
-
-/* === KV panel === */
-.kv-list {
-  list-style: none;
-  max-height: 200px;
-  overflow-y: auto;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.kv-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
-}
-.kv-list li:last-child { border-bottom: none; }
-.kv-list .kv-name { color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kv-list .kv-size { color: var(--ink-dim); font-size: 11px; }
-.kv-list .kv-age { color: var(--ink-mute); font-size: 11px; }
-.kv-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 12px;
-  flex-wrap: wrap;
-}
-.kv-actions button {
-  font-size: 11px;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--bg-elev-2);
-  color: var(--ink-dim);
-  cursor: pointer;
-  font-family: var(--mono);
-}
-.kv-actions button:hover { color: var(--ink); border-color: var(--line-hi); }
-.kv-actions button:disabled { opacity: 0.4; cursor: default; }
-.kv-actions button.danger { color: var(--rose); }
-.kv-actions button.danger:hover { color: var(--ink); border-color: var(--rose); }
-.kv-status {
-  font-size: 11px;
-  color: var(--ink-mute);
-  margin-top: 8px;
-  font-family: var(--mono);
-}
-
-/* === Model roster in widget === */
-.model-list {
-  list-style: none;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.model-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line);
-}
-.model-list li:last-child { border-bottom: none; }
-.model-list .m-name { color: var(--ink); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.model-list .m-name.loaded { color: var(--accent); }
-.model-list .m-btn {
-  font-size: 10px;
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ink-dim);
-  cursor: pointer;
-}
-.model-list .m-btn:hover { color: var(--ink); border-color: var(--line-hi); }
-.model-list .m-btn:disabled { opacity: 0.4; cursor: default; }
-.model-list .m-btn.danger { color: var(--rose); }
-
-/* === Responsive === */
-@media (max-width: 1024px) {
-  .widget-grid { grid-template-columns: repeat(2, 1fr); }
-}
+/* Responsive */
 @media (max-width: 768px) {
-  .shell { grid-template-columns: 1fr; }
-  .nav {
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .nav h1 { font-size: 14px; }
-  .nav ul { display: flex; gap: 12px; flex-wrap: wrap; }
-  .nav ul li { padding: 0; }
+  .shell { flex-direction: column; }
+  .nav { width: 100%; border-right: none; border-bottom: 1px solid var(--line); padding: 12px; }
   .widget-grid { grid-template-columns: 1fr; }
+  .log-drawer { left: 0; right: 0; }
+  .gpu-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+.widget { animation: fadeIn .3s ease-out; }
+
+/* Ghost skeleton — faded content shown until real data arrives */
+.widget-loading { opacity: 0.3; transition: opacity 0.4s ease-out; }
+.widget:not(.widget-loading) { opacity: 1; }
+
+/* Utility classes */
+.text-center { text-align: center; }
+.mt-8 { margin-top: 8px; }
+.mb-8 { margin-bottom: 8px; }
+.flex { display: flex; }
+.gap-4 { gap: 4px; }
+.justify-between { justify-content: space-between; }
+.items-center { align-items: center; }
+
+/* Grafana link */
+.grafana-link { color: var(--cyan); text-decoration: none; font-size: 13px; margin-left: auto; }
+.grafana-link:hover { text-decoration: underline; }
+
+/* Alt layout link */
+.alt-link { position: fixed; bottom: 20px; right: 20px; background: var(--bg-elev); border: 1px solid var(--line); color: var(--ink-dim); padding: 8px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; z-index: 100; }
+.alt-link:hover { background: var(--bg-elev-2); color: var(--ink); }
+
+/* System resource widget */
+.sys-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(16px * var(--widget-scale, 1)); margin-bottom: calc(16px * var(--widget-scale, 1)); }
+.sys-card { padding: 12px; background: var(--bg-elev-2); border-radius: 8px; text-align: center; }
+.sys-value { font-family: var(--mono); font-size: calc(18px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); margin-bottom: calc(4px * var(--widget-scale, 1)); }
+.sys-label { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+
+/* VRAM tracking */
+.vram-track { height: calc(8px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; margin-top: calc(8px * var(--widget-scale, 1)); }
+.vram-fill { height: 100%; background: var(--cyan); transition: width .3s ease-out; }
+
+/* Confirmation dialog */
+.confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 250; display: flex; align-items: center; justify-content: center; }
+.confirm-dialog { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.confirm-title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 12px; }
+.confirm-message { font-size: 14px; color: var(--ink-dim); margin-bottom: 20px; line-height: 1.5; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -507,8 +293,11 @@ svg circle {
 <aside class="nav">
   <div class="live-indicator"><span class="pulse"></span> LIVE FLEET</div>
   <h1>LLM SERVE</h1>
+  <div class="group">WIDGETS</div>
+  <ul id="nav-widgets"></ul>
   <div class="group" id="docked-group" style="display:none">DOCKED</div>
   <ul id="docked-widgets"></ul>
+  <div id="widget-dock" style="display:none"></div>
 </aside>
 
 <main>
@@ -516,12 +305,79 @@ svg circle {
     <h2>Sidecar</h2>
     <span class="status" id="main-status">CONNECTING</span>
     <button class="theme-toggle" id="theme-toggle" title="Cycle theme">◐</button>
-    <button class="theme-toggle" onclick="resetLayout()" title="Reset layout">↺</button>
+    <button class="theme-toggle" onclick="WidgetSystem.resetLayout()" title="Reset layout">↺</button>
+    <button class="theme-toggle" onclick="WidgetSystem.toggleSettings()" title="Settings">⚙</button>
     <a class="grafana-link" href="http://localhost:3001/d/llm-serve" target="_blank">Grafana →</a>
+  </div>
+
+  <!-- Settings Backdrop -->
+  <div class="settings-backdrop" id="settings-backdrop"></div>
+
+  <!-- Settings Panel -->
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-header">
+      <span>Settings</span>
+      <button onclick="WidgetSystem.toggleSettings()" title="Close">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="setting-row">
+        <label>Poll interval (s)</label>
+        <input type="number" id="cfg-poll-interval" min="1" max="30" step="1">
+        <span class="setting-hint">1-30 seconds</span>
+      </div>
+      <div class="setting-row">
+        <label>Sparkline points</label>
+        <input type="number" id="cfg-max-points" min="50" max="500" step="10">
+        <span class="setting-hint">~N × interval = time range</span>
+      </div>
+      <div class="setting-row">
+        <label>API base path</label>
+        <input type="text" id="cfg-api-base" placeholder="/api">
+        <span class="setting-hint">Local endpoint prefix</span>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:4px 0">
+      <div class="setting-row">
+        <label>Provider</label>
+        <select id="cfg-provider" onchange="WidgetSystem.onProviderChange()"></select>
+        <span class="setting-hint">Quick-select preset</span>
+      </div>
+      <div class="setting-row">
+        <label>Remote URL</label>
+        <input type="text" id="cfg-remote-url" placeholder="https://example.com/api">
+        <span class="setting-hint">Leave empty for local</span>
+      </div>
+      <div class="setting-row">
+        <label>API Key</label>
+        <input type="password" id="cfg-api-key" placeholder="(optional)">
+        <span class="setting-hint">Bearer token auth</span>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:4px 0">
+      <div class="setting-row">
+        <label>Widget scale (%)</label>
+        <input type="range" id="cfg-widget-scale" min="50" max="150" step="5" value="100" oninput="WidgetSystem.onScaleChange()">
+        <span class="setting-hint" id="cfg-widget-scale-val">100%</span>
+      </div>
+      <button onclick="WidgetSystem.applySettings()" style="margin-top:8px;padding:6px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600">Apply & Restart Polling</button>
+    </div>
   </div>
 
   <div class="widget-grid" id="widget-grid">
     <!-- Widgets rendered by JS -->
+  </div>
+
+  <div class="log-drawer" id="log-drawer">
+    <div class="log-drawer-bar">
+      <span class="log-drawer-title">LOG</span>
+      <span class="stat-sub" id="log-drawer-count"></span>
+      <button class="theme-toggle" id="log-copy-btn" onclick="copyLog()" title="Copy log to clipboard">⊘</button>
+      <button class="theme-toggle" id="log-save-btn" onclick="saveLog()" title="Save log to file">↦</button>
+      <button class="theme-toggle" id="log-bottom-btn" onmousedown="scrollLogToBottom()" title="Scroll to newest">↵</button>
+      <button class="theme-toggle" id="log-drawer-toggle" onclick="toggleLogDrawer()" title="Toggle log drawer">▾</button>
+    </div>
+    <div class="log-drawer-resizer" id="log-drawer-resizer" title="Drag to resize"></div>
+    <div class="log-drawer-body" id="log-drawer-body">
+      <pre class="log-content" id="log-viewer"><div class="stat-sub">loading…</div></pre>
+    </div>
   </div>
 </main>
 <a href="/alt" class="alt-link" title="Open alternate layout">alt ↗</a>
@@ -529,794 +385,1304 @@ svg circle {
 </div>
 
 <script>
-// === Widget system ===
-const DEFAULT_WIDGETS = [
-  { id: "activity", title: "Activity", render: renderActivity, span: true },
-  { id: "model", title: "Model", render: renderModel },
-  { id: "context", title: "Context", render: renderContext },
-  { id: "roster", title: "Model Roster", render: renderRoster },
-  { id: "stats", title: "Key Stats", render: renderStats },
-  { id: "gpu", title: "GPU", render: renderGpu },
-];
-const LS_KEY = "sidecar-widget-state";
-const widgetGrid = document.getElementById("widget-grid");
+// === Event System Constants ===
+const EVT = {
+  MODEL_CHANGE: "model:change",
+  GPU_UPDATE: "gpu:update", 
+  SYSTEM_UPDATE: "system:update",
+  LOG_ENTRY: "log:entry",
+  WIDGET_COLLAPSE: "widget:collapse",
+};
 
-function loadWidgetState() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const state = JSON.parse(raw);
-    if (!Array.isArray(state.order) || !Array.isArray(state.collapsed)) return null;
-    // Validate: only known widget ids
-    const known = new Set(DEFAULT_WIDGETS.map(w => w.id));
-    const valid = state.order.filter(id => known.has(id));
-    if (valid.length !== state.order.length) return null;
-    return state;
-  } catch { return null; }
-}
+// === Widget System (self-contained namespace) ===
+class WidgetSystem {
+  static DEFAULT_WIDGETS = [
+    { id: "activity", title: "Activity", render: renderActivity, span: true },
+    { id: "context", title: "Context", render: renderContext },
+    { id: "roster", title: "Model Roster", render: renderRoster },
+    { id: "gpu", title: "GPU", render: renderGpu },
+    { id: "system", title: "System", render: renderSystem },
+  ];
 
-function saveWidgetState() {
-  const order = [...widgetGrid.children].map(el => el.dataset.widgetId);
-  const collapsed = [...widgetGrid.children].filter(el => el.classList.contains("collapsed")).map(el => el.dataset.widgetId);
-  localStorage.setItem(LS_KEY, JSON.stringify({ order, collapsed }));
-}
+  static CONFIG_KEY = "sidecar-config";
+  static LS_KEY = "sidecar-widget-state";
+  static THEME_KEY = "sidecar-theme";
+  static LOG_DRAWER_KEY = "sidecar-log-drawer";
 
-function resetLayout() {
-  localStorage.removeItem(LS_KEY);
-  renderWidgets();
-}
+  static DEFAULT_CONFIG = {
+    pollInterval: 2000,
+    maxPoints: 150,
+    apiBase: "/api",
+    remoteUrl: "",
+    remoteApiKey: "",
+    loadedModel: "",
+    widgetScale: 100,
+  };
 
-function toggleCollapse(id) {
-  // Toggle the collapsed state in localStorage
-  const state = loadWidgetState();
-  const order = state ? state.order : DEFAULT_WIDGETS.map(w => w.id);
-  const collapsed = state ? new Set(state.collapsed) : new Set();
-  if (collapsed.has(id)) {
-    collapsed.delete(id);
-  } else {
-    collapsed.add(id);
+  static REMOTE_PROVIDERS = [
+    { name: "Local", url: "", apiKey: "" },
+    { name: "Ollama Cloud", url: "https://api.ollama.ai/v1", apiKey: "" },
+    { name: "LM Studio", url: "http://localhost:1234", apiKey: "" },
+    { name: "vLLM", url: "http://localhost:8000/v1", apiKey: "" },
+  ];
+
+  static config = WidgetSystem.loadConfig();
+  static grid;
+  static navWidgets;
+  static dockedWidgets;
+  static isDragging = false;
+  static dragTarget = null;
+  static dragOffsetX = 0;
+  static dragOffsetY = 0;
+
+  // Event system (pub/sub)
+  static events = {};
+
+  static on(event, callback) {
+    if (!this.events[event]) this.events[event] = [];
+    this.events[event].push(callback);
+    return () => this.off(event, callback); // Return unsubscribe function
   }
-  localStorage.setItem(LS_KEY, JSON.stringify({ order, collapsed: [...collapsed] }));
-  renderWidgets();
-  updateDocked();
-  // Re-render the widget we just expanded
-  const widget = DEFAULT_WIDGETS.find(w => w.id === id);
-  if (widget && !collapsed.has(id)) widget.render();
-}
 
-function updateDocked() {
-  const dockedUl = document.getElementById("docked-widgets");
-  const dockedGroup = document.getElementById("docked-group");
-  if (!dockedUl || !dockedGroup) return;
-  const state = loadWidgetState();
-  const collapsed = state ? state.collapsed : [];
-  if (collapsed.length === 0) {
-    dockedGroup.style.display = "none";
-    dockedUl.innerHTML = "";
-    return;
+  static off(event, callback) {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(cb => cb !== callback);
   }
-  dockedGroup.style.display = "";
-  dockedUl.innerHTML = collapsed.map(id => {
-    const widget = DEFAULT_WIDGETS.find(w => w.id === id);
-    const title = widget ? widget.title : id;
-    let body = "";
-    if (id === "model") {
-      body = `<div class="stat-sub">${escHtml(data.model || "—")}</div>`;
-    } else if (id === "roster") {
-      const presets = data.presets.map(p =>
-        `<li class="nav-model ${p.name === data.model ? "loaded" : "dim"}">
-          <span>${escHtml(p.name)}</span>
-          ${p.name === data.model ? "" : `<button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')">LOAD</button>`}
-        </li>`).join("");
-      const others = data.others.map(n =>
-        `<li class="nav-model dim"><span>${escHtml(n)}</span></li>`).join("");
-      body = `<ul>${presets}</ul><div class="other-models"><div class="nm-toggle">▸ Other (${data.others.length})</div><ul class="nm-list">${others}</ul></div>`;
-    } else if (id === "gpu" && gpuData) {
-      const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
-      const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
-      const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
-      const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
-      body = `<div style="text-align:center;padding:4px 0">
-        ${layeredRingsSVG([
-          { pct: tempPct, color: tempColor, label: temp },
-          { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
-          { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
-            overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
-        ], 80)}
-        <div style="margin-top:4px;font-size:9px;display:flex;flex-direction:column;gap:2px;align-items:flex-start">
-          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${tempColor};margin-right:3px"></i>Temp</span>
-          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#a78bfa;margin-right:3px"></i>Compute</span>
-          <span><i style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-right:3px"></i>Power</span>
-        </div>
-      </div>`;
+
+  static emit(event, data) {
+    if (!this.events[event]) return;
+    for (const cb of this.events[event]) {
+      try { cb(data); } catch (e) { console.error(`Event handler error [${event}]:`, e); }
     }
-    return `<li class="docked-widget" id="docked-${id}">
-      <div class="docked-header" onclick="toggleCollapse('${id}')">
-        <span>▸ ${title}</span>
-      </div>
-      <div class="docked-body">${body}</div>
-    </li>`;
-  }).join("");
-}
-
-function moveWidget(id, dir) {
-  const el = widgetGrid.querySelector(`[data-widget-id="${id}"]`);
-  if (!el) return;
-  if (dir === "up" && el.previousElementSibling) {
-    widgetGrid.insertBefore(el, el.previousElementSibling);
-  } else if (dir === "down" && el.nextElementSibling) {
-    widgetGrid.insertBefore(el.nextElementSibling, el);
   }
-  saveWidgetState();
-}
 
-function renderWidgets() {
-  const state = loadWidgetState();
-  const order = state ? state.order : DEFAULT_WIDGETS.map(w => w.id);
-  const collapsed = state ? new Set(state.collapsed) : new Set();
-  widgetGrid.innerHTML = "";
-  for (const id of order) {
-    const widget = DEFAULT_WIDGETS.find(w => w.id === id);
-    if (!widget) continue;
-    // Skip collapsed widgets — they live in the sidebar
-    if (collapsed.has(id)) continue;
+  static once(event, callback) {
+    const unsub = this.on(event, (data) => {
+      unsub();
+      callback(data);
+    });
+    return unsub;
+  }
+
+  static loadConfig() {
+    try {
+      const raw = localStorage.getItem(this.CONFIG_KEY);
+      if (!raw) return { ...this.DEFAULT_CONFIG };
+      const cfg = JSON.parse(raw);
+      const valid = {};
+      for (const [k, def] of Object.entries(this.DEFAULT_CONFIG)) {
+        if (cfg[k] !== undefined && typeof cfg[k] === typeof def) valid[k] = cfg[k];
+      }
+      // A saved empty apiBase is treated as unset; fall back to the default.
+      if (valid.apiBase === "") valid.apiBase = this.DEFAULT_CONFIG.apiBase;
+      return { ...this.DEFAULT_CONFIG, ...valid };
+      // loadedModel is intentionally not exposed in the settings panel:
+      // it is a server-side fact, not a user preference. It is persisted
+      // here only as a last-seen fallback for offline display.
+    } catch { return { ...this.DEFAULT_CONFIG }; }
+  }
+
+  static saveConfig(cfg) {
+    localStorage.setItem(this.CONFIG_KEY, JSON.stringify(cfg));
+    this.config = cfg;
+  }
+
+  static loadWidgetState() {
+    try {
+      const raw = localStorage.getItem(this.LS_KEY);
+      if (!raw) return null;
+      const state = JSON.parse(raw);
+      if (!Array.isArray(state.order) || !Array.isArray(state.collapsed)) return null;
+      const known = new Set(this.DEFAULT_WIDGETS.map(w => w.id));
+      const valid = state.order.filter(id => known.has(id));
+      if (valid.length !== state.order.length) return null;
+      return state;
+    } catch { return null; }
+  }
+
+  static saveWidgetState() {
+    const order = Array.from(this.grid.children).map(el => el.dataset.widgetId);
+    const collapsed = [];
+    this.grid.querySelectorAll(".widget.collapsed").forEach(el => collapsed.push(el.dataset.widgetId));
+    localStorage.setItem(this.LS_KEY, JSON.stringify({ order, collapsed }));
+  }
+
+  static resetLayout() {
+    localStorage.removeItem(this.LS_KEY);
+    this.renderWidgets();
+  }
+
+  static init() {
+    this.grid = document.getElementById("widget-grid");
+    this.navWidgets = document.getElementById("nav-widgets");
+    this.dockedWidgets = document.getElementById("docked-widgets");
+    this.renderNav();
+    this.initDragDrop();
+    this.initSettingsPanel();
+    this.applyWidgetScale();
+    this.updateDocked();
+
+    // Wire data events to widget re-renders
+    this.on(EVT.MODEL_CHANGE, () => { renderRoster(); this.updateDocked(); });
+    this.on(EVT.GPU_UPDATE, () => { renderGpu(); this.updateDocked(); });
+    this.on(EVT.SYSTEM_UPDATE, () => renderSystem());
+  }
+
+  static renderNav() {
+    if (!this.navWidgets) return;
+    this.navWidgets.innerHTML = this.DEFAULT_WIDGETS.map(w => 
+      `<li><a href="#" onclick="WidgetSystem.toggleCollapse('${w.id}');return false">${w.title}</a></li>`
+    ).join("");
+  }
+
+  static renderWidgets() {
+    if (!this.grid) return;
+    const state = this.loadWidgetState();
+    const order = state ? state.order : this.DEFAULT_WIDGETS.map(w => w.id);
+    const collapsed = new Set(state?.collapsed || []);
+    const dock = document.getElementById("widget-dock");
+    
+    // Restore any docked widgets back to the grid before clearing
+    if (dock) {
+      const docked = Array.from(dock.children);
+      docked.forEach(el => this.grid.appendChild(el));
+    }
+    
+    this.grid.innerHTML = "";
+    
+    for (const id of order) {
+      if (collapsed.has(id)) continue; // collapsed widgets live in the sidebar
+      const widget = this.DEFAULT_WIDGETS.find(w => w.id === id);
+      if (!widget) continue;
+      this.createWidgetElement(widget, id);
+    }
+    
+    // Move collapsed widgets to the dock
+    if (dock) {
+      order.forEach(id => {
+        if (collapsed.has(id)) {
+          const el = this.grid.querySelector(`[data-widget-id="${id}"]`);
+          if (el) dock.appendChild(el);
+        }
+      });
+    }
+  }
+
+  static createWidgetElement(widget, id) {
     const el = document.createElement("div");
-    el.className = "widget" + (widget.span ? " widget-span" : "");
+    el.className = `widget${widget.span ? " widget-span" : ""}`;
     el.dataset.widgetId = id;
+    
+    // Ghost skeleton: pre-built content rendered faded until real data arrives
+    const _ghosts = {
+      activity: _activitySkeleton,
+      context: _contextGhost,
+      roster: _rosterSkeleton,
+      system: _systemSkeleton,
+    };
+    const ghostHtml = _ghosts[id] || null;
+    
     if (widget.span) {
-      // Immutable: no drag, no collapse, no move
       el.innerHTML = `
         <div class="widget-header">
           <span class="w-title">${widget.title}</span>
         </div>
-        <div class="widget-body" id="widget-${id}"></div>
-      `;
+        <div class="widget-body widget-loading" id="widget-${id}">${ghostHtml || `<div class="stat-sub">loading…</div>`}</div>`;
     } else {
       el.innerHTML = `
         <div class="widget-header" draggable="true">
           <span class="w-title">${widget.title}</span>
           <div class="w-controls">
-            <button class="w-btn" onclick="moveWidget('${id}','up')" title="Move up">↑</button>
-            <button class="w-btn" onclick="moveWidget('${id}','down')" title="Move down">↓</button>
-            <button class="w-btn" onclick="toggleCollapse('${id}')" title="Collapse">▾</button>
+            <button class="w-btn" onclick="WidgetSystem.moveWidget('${id}','up')" title="Move up">↑</button>
+            <button class="w-btn" onclick="WidgetSystem.moveWidget('${id}','down')" title="Move down">↓</button>
+            <button class="w-btn" onclick="WidgetSystem.toggleCollapse('${id}')" title="Collapse">▾</button>
           </div>
         </div>
-        <div class="widget-body" id="widget-${id}"></div>
-      `;
+        <div class="widget-body widget-loading" id="widget-${id}">${ghostHtml || `<div class="stat-sub">loading…</div>`}</div>`;
     }
-    widgetGrid.appendChild(el);
+    
+    this.grid.appendChild(el);
   }
-  // Attach drag handlers (skip span widgets)
-  widgetGrid.querySelectorAll(".widget:not(.widget-span)").forEach(w => {
-    w.addEventListener("dragstart", onDragStart);
-    w.addEventListener("dragover", onDragOver);
-    w.addEventListener("drop", onDrop);
-    w.addEventListener("dragend", onDragEnd);
-  });
-}
 
-let dragSrc = null;
-let dropTarget = null; // element to insert before (or null = append)
-let dropAfter = false; // true = insert after target
-
-function onDragStart(e) {
-  dragSrc = e.currentTarget;
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", dragSrc.dataset.widgetId);
-  dragSrc.classList.add("dragging");
-  dropTarget = null;
-  dropAfter = false;
-}
-
-function onDragOver(e) {
-  e.preventDefault();
-  if (!dragSrc || dragSrc === e.currentTarget) return;
-  const target = e.currentTarget;
-  const rect = target.getBoundingClientRect();
-  const midY = rect.top + rect.height / 2;
-  // Preview: highlight where the widget would land
-  widgetGrid.querySelectorAll(".drop-before, .drop-after").forEach(el => {
-    el.classList.remove("drop-before", "drop-after");
-  });
-  if (e.clientY < midY) {
-    dropTarget = target;
-    dropAfter = false;
-    target.classList.add("drop-before");
-  } else {
-    dropTarget = target;
-    dropAfter = true;
-    target.classList.add("drop-after");
-  }
-}
-
-function onDrop(e) {
-  e.preventDefault();
-  if (!dragSrc) return;
-  // Commit: move the widget to the previewed position
-  if (dropTarget) {
-    if (dropAfter) {
-      widgetGrid.insertBefore(dragSrc, dropTarget.nextElementSibling);
+  static toggleCollapse(id) {
+    const state = this.loadWidgetState();
+    const order = state ? state.order : this.DEFAULT_WIDGETS.map(w => w.id);
+    const collapsed = new Set(state?.collapsed || []);
+    
+    const willCollapse = !collapsed.has(id);
+    if (willCollapse) {
+      collapsed.add(id);
     } else {
-      widgetGrid.insertBefore(dragSrc, dropTarget);
+      collapsed.delete(id);
+    }
+    
+    localStorage.setItem(this.LS_KEY, JSON.stringify({ order, collapsed: [...collapsed] }));
+    
+    // Move the existing DOM node between grid and dock (no rebuild)
+    const dock = document.getElementById("widget-dock");
+    const el = willCollapse
+      ? this.grid.querySelector(`[data-widget-id="${id}"]`)
+      : dock.querySelector(`[data-widget-id="${id}"]`);
+    if (willCollapse) {
+      if (el) dock.appendChild(el);
+    } else {
+      // Restore to grid at its position in the order
+      const idx = order.indexOf(id);
+      const prevIds = order.slice(0, idx);
+      let refNode = null;
+      for (let i = prevIds.length - 1; i >= 0; i--) {
+        refNode = this.grid.querySelector(`[data-widget-id="${prevIds[i]}"]`);
+        if (refNode) break;
+      }
+      if (el) this.grid.insertBefore(el, refNode ? refNode.nextSibling : null);
+    }
+    
+    this.updateDocked();
+  }
+
+  static moveWidget(id, direction) {
+    const state = this.loadWidgetState();
+    if (!state) return;
+    
+    const idx = state.order.indexOf(id);
+    if (idx === -1) return;
+    
+    const newIdx = direction === "up" ? Math.max(0, idx - 1) : Math.min(state.order.length - 1, idx + 1);
+    if (newIdx === idx) return;
+    
+    [state.order[idx], state.order[newIdx]] = [state.order[newIdx], state.order[idx]];
+    localStorage.setItem(this.LS_KEY, JSON.stringify({ order: state.order, collapsed: state.collapsed }));
+    this.renderWidgets();
+  }
+
+  static _dockedKey = "";
+
+  static updateDocked() {
+    if (!this.dockedWidgets) return;
+    const state = this.loadWidgetState();
+    const collapsed = new Set(state?.collapsed || []);
+    
+    // Dirty-check: skip rebuild if collapsed set and data haven't changed
+    const presetNames = (currentData.presets || []).map(p => p.name).join(",");
+    const dataKey = `${[...collapsed].sort().join(",")}|${(currentData.model || "")}|${presetNames}|${(gpuData?.temp_c || 0).toFixed(0)}|${(gpuData?.power_w || 0).toFixed(0)}|${(gpuData?.gfx_percent || 0).toFixed(0)}|${(systemData?.ram_used_pct || 0).toFixed(0)}|${(systemData?.cpu_percent || 0).toFixed(0)}`;
+    if (dataKey === this._dockedKey) return;
+    this._dockedKey = dataKey;
+    
+    if (collapsed.size === 0) {
+      document.getElementById("docked-group")?.remove();
+      this.dockedWidgets.innerHTML = "";
+      return;
+    }
+    
+    const dockedGroup = document.createElement("div");
+    dockedGroup.className = "group";
+    dockedGroup.textContent = "DOCKED";
+    dockedGroup.id = "docked-group";
+    this.navWidgets?.insertBefore(dockedGroup, this.dockedWidgets);
+    
+    this.dockedWidgets.innerHTML = Array.from(collapsed).map(id => {
+      const widget = this.DEFAULT_WIDGETS.find(w => w.id === id);
+      if (!widget) return "";
+      
+      let body = "";
+      if (id === "activity") {
+        const decode = currentData.decode_rate || 0;
+        const prompt = currentData.prompt_rate || 0;
+        const ctx = currentData.ctx_fill_pct || 0;
+        body = `<div class="docked-body">
+          <div class="stat-row"><span class="stat-label">Decode</span><span class="stat-value" style="font-size:14px">${decode.toFixed(1)}</span><span class="stat-unit">tok/s</span></div>
+          <div class="stat-row"><span class="stat-label">Prompt</span><span class="stat-value" style="font-size:14px">${prompt.toFixed(1)}</span><span class="stat-unit">tok/s</span></div>
+          <div class="stat-row"><span class="stat-label">Ctx</span><span class="stat-value" style="font-size:14px">${ctx.toFixed(0)}</span><span class="stat-unit">%</span></div>
+        </div>`;
+      } else if (id === "context") {
+        const ctx = currentData.ctx_fill_pct || 0;
+        body = `<div class="docked-body">
+          <div class="stat-row"><span class="stat-label">Context Fill</span><span class="stat-value" style="font-size:14px">${ctx.toFixed(0)}</span><span class="stat-unit">%</span></div>
+        </div>`;
+      } else if (id === "roster") {
+        const loaded = currentData.model || "";
+        const presets = currentData.presets || [];
+        const others = presets.filter(p => p.name !== loaded);
+        const rows = [];
+        if (loaded) {
+          rows.push(`<li class="nav-model on" data-model="${escHtml(loaded)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(loaded)}">${escHtml(shortName(loaded))}</span><button class="nm-btn" onclick="unloadModel()" title="Unload">UNLOAD</button></li>`);
+        } else {
+          rows.push(`<li class="nav-model dim">no model loaded</li>`);
+        }
+        for (const p of others) {
+          rows.push(`<li class="nav-model" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load">LOAD</button></li>`);
+        }
+        body = `<div class="docked-body"><ul class="docked-roster">${rows.join("")}</ul></div>`;
+      } else if (id === "gpu" && gpuData) {
+        const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
+        const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
+        const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
+        const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
+        body = `<div class="docked-body" style="text-align:center">
+          ${layeredRingsSVG([
+            { pct: tempPct, color: tempColor, label: temp },
+            { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
+            { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
+              overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
+          ], 60)}
+        </div>`;
+      } else if (id === "system" && systemData) {
+        const ramPct = systemData.ram_used_pct || 0;
+        const cpuPct = systemData.cpu_percent || 0;
+        body = `<div class="docked-body">
+          <div class="stat-row"><span class="stat-label">RAM</span><span class="stat-value" style="font-size:14px">${ramPct.toFixed(0)}</span><span class="stat-unit">%</span></div>
+          <div class="stat-row"><span class="stat-label">CPU</span><span class="stat-value" style="font-size:14px">${cpuPct.toFixed(0)}</span><span class="stat-unit">%</span></div>
+        </div>`;
+      } else {
+        body = `<div class="docked-body"><div class="stat-sub">${widget.title}</div></div>`;
+      }
+      
+      return `<li class="docked-widget">
+        <div class="docked-header" onclick="WidgetSystem.toggleCollapse('${id}')">${widget.title} ▴</div>
+        ${body}
+      </li>`;
+    }).join("");
+  }
+
+  static initDragDrop() {
+    if (!this.grid) return;
+
+    let dragEl = null;
+    let ghost = null;
+    let overWidget = null;
+
+    const getWidget = (el) => el?.closest(".widget:not(.widget-span)");
+
+    this.grid.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return; // only left click
+      const header = e.target.closest(".widget-header[draggable='true']");
+      if (!header) return;
+
+      // Don't start a drag when clicking a control button
+      if (e.target.closest(".w-btn")) return;
+
+      dragEl = getWidget(header);
+      if (!dragEl) return;
+
+      e.preventDefault();
+      this.isDragging = true;
+      this.dragTarget = dragEl;
+      const rect = dragEl.getBoundingClientRect();
+      this.dragOffsetX = e.clientX - rect.left;
+      this.dragOffsetY = e.clientY - rect.top;
+
+      // Create a floating ghost element
+      ghost = dragEl.cloneNode(true);
+      ghost.style.position = "fixed";
+      ghost.style.width = rect.width + "px";
+      ghost.style.height = rect.height + "px";
+      ghost.style.zIndex = "1000";
+      ghost.style.pointerEvents = "none";
+      ghost.style.opacity = "0.85";
+      ghost.style.transform = "rotate(2deg) scale(1.03)";
+      ghost.classList.add("dragging");
+      document.body.appendChild(ghost);
+
+      // Hide the original while dragging
+      dragEl.style.visibility = "hidden";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!this.isDragging || !ghost || !dragEl) return;
+
+      ghost.style.left = (e.clientX - this.dragOffsetX) + "px";
+      ghost.style.top = (e.clientY - this.dragOffsetY) + "px";
+
+      // Find drop target (skip the ghost itself)
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const candidate = hit === ghost ? null : getWidget(hit);
+      if (candidate && candidate !== dragEl) {
+        if (overWidget !== candidate) {
+          this.grid.querySelectorAll(".widget.drop-target")
+            .forEach(el => el.classList.remove("drop-target"));
+          this.grid.querySelectorAll(".drop-before, .drop-after")
+            .forEach(el => el.classList.remove("drop-before", "drop-after"));
+          const rect = candidate.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          if (e.clientY < midY) {
+            candidate.classList.add("drop-before");
+          } else {
+            candidate.classList.add("drop-after");
+          }
+          candidate.classList.add("drop-target");
+          overWidget = candidate;
+        }
+      } else {
+        this.grid.querySelectorAll(".widget.drop-target")
+          .forEach(el => el.classList.remove("drop-target"));
+        this.grid.querySelectorAll(".drop-before, .drop-after")
+          .forEach(el => el.classList.remove("drop-before", "drop-after"));
+        overWidget = null;
+      }
+    });
+
+    document.addEventListener("mouseup", (e) => {
+      if (!this.isDragging || !dragEl) return;
+
+      // Reorder if dropped on a valid target (skip the ghost itself)
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const candidate = hit === ghost ? null : getWidget(hit);
+      if (candidate && candidate !== dragEl) {
+        const state = this.loadWidgetState();
+        const order = state ? [...state.order] : this.DEFAULT_WIDGETS.map(w => w.id);
+        const collapsed = state ? state.collapsed : [];
+        const draggedIdx = order.indexOf(dragEl.dataset.widgetId);
+        const targetIdx = order.indexOf(candidate.dataset.widgetId);
+        if (draggedIdx !== -1 && targetIdx !== -1 && draggedIdx !== targetIdx) {
+          // Remove from old position, insert at new one
+          const [moved] = order.splice(draggedIdx, 1);
+          let insertAt = targetIdx;
+          // Adjust: if we removed an element before the target, target index shifts down by 1
+          if (draggedIdx < targetIdx) {
+            insertAt = targetIdx - 1;
+          }
+          // drop-after means insert after the target; drop-before means before
+          const isDropAfter = candidate.classList.contains("drop-after");
+          order.splice(isDropAfter ? insertAt + 1 : insertAt, 0, moved);
+          localStorage.setItem(this.LS_KEY, JSON.stringify({ order, collapsed }));
+          // Reorder existing DOM nodes in place (no full rebuild)
+          const idToEl = {};
+          Array.from(this.grid.children).forEach(el => { idToEl[el.dataset.widgetId] = el; });
+          order.filter(id => idToEl[id]).forEach(id => this.grid.appendChild(idToEl[id]));
+          this.updateDocked();
+        }
+      }
+
+      // Cleanup
+      this.grid.querySelectorAll(".widget.drop-target")
+        .forEach(el => el.classList.remove("drop-target"));
+      this.grid.querySelectorAll(".drop-before, .drop-after")
+        .forEach(el => el.classList.remove("drop-before", "drop-after"));
+      dragEl.style.visibility = "";
+      if (ghost) ghost.remove();
+      ghost = null;
+      dragEl = null;
+      overWidget = null;
+      this.isDragging = false;
+      this.dragTarget = null;
+    });
+  }
+
+  static initSettingsPanel() {
+    const panel = document.getElementById("settings-panel");
+    const backdrop = document.getElementById("settings-backdrop");
+    if (!panel) return;
+    
+    // Populate provider dropdown
+    const sel = document.getElementById("cfg-provider");
+    if (sel) {
+      WidgetSystem.REMOTE_PROVIDERS.forEach((p, i) => {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+    }
+    
+    // Draggable modal
+    let isDragging = false, startX, startY, origX, origY;
+    const header = panel.querySelector(".settings-header");
+    if (header) {
+      header.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = panel.getBoundingClientRect();
+        origX = rect.left;
+        origY = rect.top;
+        panel.style.transform = "none";
+        panel.style.left = origX + "px";
+        panel.style.top = origY + "px";
+      });
+      
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.style.left = (origX + dx) + "px";
+        panel.style.top = (origY + dy) + "px";
+      });
+      
+      document.addEventListener("mouseup", () => { isDragging = false; });
     }
   }
-  clearDropPreview();
-  dragSrc.classList.remove("dragging");
-  dragSrc = null;
-  dropTarget = null;
-  saveWidgetState();
+
+  static toggleSettings() {
+    const panel = document.getElementById("settings-panel");
+    const backdrop = document.getElementById("settings-backdrop");
+    if (!panel) return;
+    
+    const isOpen = panel.classList.contains("open");
+    
+    // Load current config into inputs when opening
+    if (!isOpen) {
+      const pollEl = document.getElementById("cfg-poll-interval");
+      const ptsEl = document.getElementById("cfg-max-points");
+      const apiEl = document.getElementById("cfg-api-base");
+      const remoteEl = document.getElementById("cfg-remote-url");
+      const keyEl = document.getElementById("cfg-api-key");
+      if (pollEl) pollEl.value = Math.round(this.config.pollInterval / 1000);
+      if (ptsEl) ptsEl.value = this.config.maxPoints;
+      if (apiEl) apiEl.value = this.config.apiBase || "/api";
+      if (remoteEl) remoteEl.value = this.config.remoteUrl || "";
+      if (keyEl) keyEl.value = this.config.remoteApiKey || "";
+      const scaleEl = document.getElementById("cfg-widget-scale");
+      const scaleValEl = document.getElementById("cfg-widget-scale-val");
+      if (scaleEl) scaleEl.value = this.config.widgetScale || 100;
+      if (scaleValEl) scaleValEl.textContent = (this.config.widgetScale || 100) + "%";
+      
+      // Auto-select matching provider
+      const matchIdx = WidgetSystem.REMOTE_PROVIDERS.findIndex(p => p.url === (this.config.remoteUrl || ""));
+      if (matchIdx >= 0) {
+        const provEl = document.getElementById("cfg-provider");
+        if (provEl) provEl.value = String(matchIdx);
+      }
+    }
+    
+    panel.classList.toggle("open");
+    backdrop?.classList.toggle("open", !isOpen);
+  }
+
+  static onProviderChange() {
+    const idx = parseInt(document.getElementById("cfg-provider")?.value);
+    if (isNaN(idx)) return;
+    const provider = WidgetSystem.REMOTE_PROVIDERS[idx];
+    if (!provider) return;
+    
+    document.getElementById("cfg-remote-url").value = provider.url;
+    document.getElementById("cfg-api-key").value = provider.apiKey || "";
+  }
+
+  static applySettings() {
+    const pollSec = parseInt(document.getElementById("cfg-poll-interval")?.value) || 2;
+    const maxPts = parseInt(document.getElementById("cfg-max-points")?.value) || 150;
+    const apiBase = (document.getElementById("cfg-api-base")?.value || "/api").replace(/\/$/, "");
+    const remoteUrl = (document.getElementById("cfg-remote-url")?.value || "").replace(/\/$/, "");
+    const apiKey = document.getElementById("cfg-api-key")?.value || "";
+    const widgetScale = parseInt(document.getElementById("cfg-widget-scale")?.value) || 100;
+    
+    this.config = { ...this.config, pollInterval: pollSec * 1000, maxPoints: maxPts, apiBase, remoteUrl, remoteApiKey: apiKey, widgetScale };
+    this.saveConfig(this.config);
+    
+    // Apply changes
+    MAX_POINTS = this.config.maxPoints;
+    POLL_INTERVAL = this.config.pollInterval;
+    this.applyWidgetScale();
+    
+    document.getElementById("settings-panel")?.classList.remove("open");
+    document.getElementById("settings-backdrop")?.classList.remove("open");
+  }
+
+  static applyWidgetScale() {
+    const scale = (this.config.widgetScale || 100) / 100;
+    const grid = document.getElementById("widget-grid");
+    if (grid) {
+      grid.style.setProperty("--widget-scale", scale);
+    }
+  }
+
+  static onScaleChange() {
+    const val = parseInt(document.getElementById("cfg-widget-scale")?.value) || 100;
+    this.config.widgetScale = val;
+    const valEl = document.getElementById("cfg-widget-scale-val");
+    if (valEl) valEl.textContent = val + "%";
+    this.applyWidgetScale();
+  }
 }
 
-function onDragEnd(e) {
-  // If no drop occurred, widget stays in original position
-  clearDropPreview();
-  if (dragSrc) dragSrc.classList.remove("dragging");
-  dragSrc = null;
-  dropTarget = null;
-}
+// Expose for inline onclick handlers
+window.WidgetSystem = WidgetSystem;
 
-function clearDropPreview() {
-  widgetGrid.querySelectorAll(".drop-before, .drop-after").forEach(el => {
-    el.classList.remove("drop-before", "drop-after");
-  });
-}
-
-// === Data ===
-let data = { model: null, snapshots: [], presets: [], others: [] };
-
-// === GPU ===
+// === Global State & Config ===
+let POLL_INTERVAL = WidgetSystem.config.pollInterval || 2000;
+let MAX_POINTS = WidgetSystem.config.maxPoints || 150;
+let currentData = {};
 let gpuData = null;
-async function fetchGpu() {
-  try {
-    const r = await fetch("/api/gpu");
-    if (!r.ok) { console.error("GPU fetch failed:", r.status); gpuData = null; return; }
-    gpuData = await r.json();
-    console.log("GPU data:", gpuData.vendor, gpuData.power_w);
-  } catch (e) { console.error("GPU fetch error:", e); gpuData = null; }
+let systemData = null;
+let logEntries = [];
+// Previous slot snapshot for delta-based rate computation
+let prevSlot = null;
+
+// === Utility Functions ===
+function escHtml(str) {
+  if (str == null) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// GPU history buffers (rolling, 2s intervals, 300 points = 10 min)
-const GPU_MAX_POINTS = 300;
-let gpuHistory = { power: [], vram: [], compute: [], temp: [], freq: [] };
+function shortName(name) {
+  if (!name) return "—";
+  // Strip .gguf extension and common prefixes
+  const base = name.replace(/\.gguf$/i, "").replace(/^model-/, "").replace(/_v\d+$/, "");
+  return base.length > 30 ? base.substring(0, 27) + "..." : base;
+}
 
-function tickGpuHistory() {
-  if (!gpuData) return;
-  const now = {
-    power: gpuData.power_w || 0,
-    vram: gpuData.vram_used_mib || 0,
-    compute: gpuData.gfx_percent || 0,
-    temp: gpuData.temp_c || 0,
-    freq: gpuData.freq_mhz || 0,
-  };
-  for (const key of Object.keys(gpuHistory)) {
-    gpuHistory[key].push(now[key]);
-    if (gpuHistory[key].length > GPU_MAX_POINTS) gpuHistory[key].shift();
+function apiFetch(path, options = {}) {
+  const remoteUrl = WidgetSystem.config.remoteUrl;
+  const apiBase = WidgetSystem.config.apiBase || "/api";
+  const isLocal = !remoteUrl;
+
+  // Local sidecar serves everything under /api, so strip the /api prefix
+  // from the path and keep the base as the server root.
+  // Remote providers use the path as-is against the remote base.
+  let cleanPath = isLocal && path.startsWith("/api/") ? path.slice(4) : path;
+  let cleanBaseUrl = (isLocal ? apiBase : remoteUrl).replace(/\/$/, "");
+
+  let url = path.startsWith("http") ? path : `${cleanBaseUrl}${cleanPath}`;
+  console.log(`apiFetch: base="${cleanBaseUrl}" path="${path}" -> url="${url}"`);
+  
+  const headers = { ...options.headers };
+  if (WidgetSystem.config.remoteApiKey) {
+    headers["Authorization"] = `Bearer ${WidgetSystem.config.remoteApiKey}`;
   }
+  
+  return fetch(url, { ...options, headers })
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+      const contentType = r.headers.get('content-type');
+      return contentType && contentType.includes('application/json') ? r.json() : r.text();
+    })
+    .catch(e => {
+      console.warn(`API fetch failed [${path}]:`, e.message);
+      throw e;
+    });
 }
 
-function sparklineSVG(data, w, h, color, opts) {
+// === Sparkline SVG Generator ===
+function sparklineSVG(data, color = "var(--cyan)") {
   if (!data || data.length < 2) return "";
-  opts = opts || {};
-  const mode = opts.mode || "absolute"; // "absolute" or "relative"
-  let min, max;
-  if (mode === "relative") {
-    min = Math.min(...data);
-    max = Math.max(...data);
-  } else {
-    min = 0;
-    max = opts.maxVal || Math.max(...data, 1);
-  }
-  const range = max - min || 1;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 2) - 1;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const fillPoints = `0,${h} ${points.join(" ")} ${w},${h}`;
-  return `<svg width="${w}" height="${h}" style="display:block">
-    <polygon points="${fillPoints}" fill="${color}" opacity="0.15" />
-    <polyline points="${points.join(" ")}" fill="none" stroke="${color}" stroke-width="1.5" />
+  
+  const width = 100; // viewBox units
+  const height = 30;
+  const maxVal = Math.max(...data);
+  const minVal = Math.min(...data);
+  const range = maxVal - minVal || 1;
+  
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - minVal) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
+  
+  return `<svg class="sparkline-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
 }
 
-function renderGpu() {
-  const el = document.getElementById("widget-gpu");
-  if (!el) return;
-  if (!gpuData) {
-    el.innerHTML = '<div class="stat-sub" style="color:var(--amber)">GPU data unavailable</div>';
-    return;
-  }
-  // Set theme class on <html> for GPU-vendor accent color
-  if (!localStorage.getItem(THEME_KEY)) {
-    document.documentElement.className = `theme-${gpuData.vendor}`;
-  }
-
-  const vendorLabel = gpuData.vendor.charAt(0).toUpperCase() + gpuData.vendor.slice(1);
-  const power = gpuData.power_w != null ? gpuData.power_w.toFixed(1) + " W" : "—";
-  const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + " °C" : "—";
-  const freq = gpuData.freq_mhz != null ? gpuData.freq_mhz.toFixed(0) + " MHz" : "—";
-  const vramUsed = gpuData.vram_used_mib != null ? gpuData.vram_used_mib.toFixed(0) + " MiB" : "—";
-  const vramTotal = gpuData.vram_total_mib != null ? gpuData.vram_total_mib.toFixed(0) + " MiB" : "—";
-  const compute = gpuData.gfx_percent != null ? gpuData.gfx_percent.toFixed(0) + " %" : "—";
-  const fan = gpuData.fan_rpm != null ? gpuData.fan_rpm.toFixed(0) + " RPM" : "—";
-
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
-  const w = el.clientWidth || 300;
-  const sw = Math.floor((w - 40) / 3); // 3 sparklines side by side
-
-  // Temperature ring (max safe: 100C AMD, 90C NVIDIA)
-  const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
-  const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
-  const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
-
-  el.innerHTML = `
-    <div class="stat-label">${vendorLabel} GPU</div>
-    <div class="stat-sub">${gpuData.name || "unknown"}</div>
-    <div style="display:flex;gap:12px;margin-top:8px;align-items:center">
-      <div style="flex:1">
-        <div class="stat-row"><span>Power</span><b>${power}</b></div>
-        <div class="stat-row"><span>Compute</span><b>${compute}</b></div>
-        <div class="stat-row"><span>VRAM</span><b>${vramUsed} / ${vramTotal}</b></div>
-        <div class="stat-row"><span>Freq</span><b>${freq}</b></div>
-        <div class="stat-row"><span>Fan</span><b>${fan}</b></div>
-      </div>
-      <div style="text-align:center">
-        ${layeredRingsSVG([
-          { pct: tempPct, color: tempColor, label: temp },
-          { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
-          { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
-            overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
-        ], 100)}
-        <div style="margin-top:6px;font-size:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
-          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tempColor};margin-right:4px"></i>Temp</span>
-          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#a78bfa;margin-right:4px"></i>Compute</span>
-          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);margin-right:4px"></i>Power</span>
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <div>
-        <div class="stat-sub" style="font-size:10px">Power</div>
-        ${sparklineSVG(gpuHistory.power, sw, 30, accent)}
-      </div>
-      <div>
-        <div class="stat-sub" style="font-size:10px">Compute</div>
-        ${sparklineSVG(gpuHistory.compute, sw, 30, accent)}
-      </div>
-      <div>
-        <div class="stat-sub" style="font-size:10px">VRAM</div>
-        ${sparklineSVG(gpuHistory.vram, sw, 30, accent, { maxVal: gpuData.vram_total_mib })}
-      </div>
-    </div>
-  `;
-}
-
-// === Theme ===
-const THEMES = ["slate", "amd", "nvidia", "intel"];
-const THEME_KEY = "sidecar-theme";
-
-function getTheme() {
-  return localStorage.getItem(THEME_KEY) || "slate";
-}
-
-function applyTheme(theme) {
-  document.documentElement.className = `theme-${theme}`;
-}
-
-function cycleTheme() {
-  const current = getTheme();
-  const idx = THEMES.indexOf(current);
-  const next = THEMES[(idx + 1) % THEMES.length];
-  localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
-}
-
-// Init theme
-applyTheme(getTheme());
-document.getElementById("theme-toggle").addEventListener("click", cycleTheme);
-
-// === Metrics (sparklines + ring) ===
-let metricsData = { decode: [], ctx: [] };
-
-async function fetchMetrics() {
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    const start = now - 600; // 10 min
-    const [r1, r2] = await Promise.all([
-      fetch(`/api/prometheus/query_range?query=llamacpp:predicted_tokens_seconds&start=${start}&end=${now}&step=10`).then(r => r.json()),
-      fetch(`/api/prometheus/query_range?query=llamacpp:n_tokens_max&start=${start}&end=${now}&step=10`).then(r => r.json()),
-    ]);
-    const d1 = r1.data?.result?.[0]?.values || [];
-    const d2 = r2.data?.result?.[0]?.values || [];
-    metricsData.decode = d1.map(v => parseFloat(v[1]));
-    metricsData.ctx = d2.map(v => parseFloat(v[1]));
-  } catch { /* keep old data */ }
-}
-
-
-
-function ringChartSVG(pct, size, strokeWidth, color) {
-  const r = (size - strokeWidth) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = (pct / 100) * c;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${strokeWidth}" />
-    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
-      stroke-dasharray="${dash} ${c}" stroke-linecap="round"
-      transform="rotate(90 ${size/2} ${size/2})" />
-    <text x="${size/2}" y="${size/2}" text-anchor="middle" dominant-baseline="central"
-      fill="var(--ink)" stroke="var(--bg)" stroke-width="3" paint-order="stroke"
-      font-size="${size/5}" font-family="var(--mono)">${pct.toFixed(0)}%</text>
-  </svg>`;
-}
-
-function layeredRingsSVG(rings, size) {
-  // rings: [{pct, color, label, overPct, overColor}] — outer to inner
-  const sw = Math.floor(size / 8); // stroke width per ring
-  const gap = 2;
-  const pad = sw;
-  const totalSize = size + pad * 2;
-  const cx = totalSize / 2;
-  const cy = totalSize / 2;
-  let maxR = size / 2 - 2;
-  const circles = rings.map((ring, i) => {
-    const r = maxR - i * (sw + gap);
-    const c = 2 * Math.PI * r;
-    const pct = Math.min(ring.pct, 100);
-    const dash = (pct / 100) * c;
-    let over = "";
-    if (ring.overPct && ring.overPct > 0) {
-      const overDash = (ring.overPct / 100) * c;
-      over = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring.overColor || "var(--red)"}" stroke-width="${sw}"
-        stroke-dasharray="${overDash} ${c}" stroke-dashoffset="${-dash}" stroke-linecap="round"
-        transform="rotate(90 ${cx} ${cy})" />`;
+function layeredRingsSVG(layers, size = 60) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const radii = [size * 0.35, size * 0.55, size * 0.75];
+  
+  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+  
+  layers.forEach((layer, i) => {
+    const r = radii[i] || (size * 0.25 + i * size * 0.15);
+    const circumference = 2 * Math.PI * r;
+    const offset = circumference - (layer.pct / 100) * circumference;
+    
+    svg += `<circle class="ring-${i}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${layer.color || "var(--ink-mute)"}" stroke-width="4" 
+            stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    
+    if (layer.label && i === 0) {
+      svg += `<text class="ring-label" x="${cx}" y="${cy + 5}" text-anchor="middle" fill="${layer.color || "var(--ink)"}" font-size="12" font-family="monospace">${layer.label}</text>`;
     }
-    return `
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${sw}" opacity="0.3" />
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring.color}" stroke-width="${sw}"
-        stroke-dasharray="${dash} ${c}" stroke-linecap="round"
-        transform="rotate(90 ${cx} ${cy})" />
-      ${over}`;
   });
-  const centerText = rings[0].label || "";
-  return `<svg width="${totalSize}" height="${totalSize}" viewBox="0 0 ${totalSize} ${totalSize}">
-    ${circles.join("")}
-    <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
-      fill="var(--ink)" stroke="var(--bg)" stroke-width="3" paint-order="stroke"
-      font-size="${size/5}" font-family="var(--mono)">${centerText}</text>
-  </svg>`;
+  
+  svg += "</svg>";
+  return svg;
 }
 
-function renderMetrics() {
-  const el = document.getElementById("widget-metrics");
-  if (!el) return;
-  const nCtx = 128000;
-  const ctxNow = metricsData.ctx.length ? metricsData.ctx[metricsData.ctx.length - 1] : 0;
-  const ctxPct = Math.min((ctxNow / nCtx) * 100, 100);
-  const decodeNow = metricsData.decode.length ? metricsData.decode[metricsData.decode.length - 1] : 0;
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
+// Pre-built widget skeletons (built once at script load)
+const _activitySkeleton = `
+  <div class="stat-row">
+    <span class="stat-label">Decode</span>
+    <span class="stat-value act-decode">0.0 tok/s</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Prompt</span>
+    <span class="stat-value act-prompt">0.0 tok/s</span>
+  </div>
+  <div class="stat-row">
+    <span class="stat-label">Ctx Fill</span>
+    <span class="stat-value act-ctx">0%</span>
+  </div>
+`;
 
-  el.innerHTML = `
-    <div style="display:flex;gap:16px;align-items:center">
-      <div>
-        ${ringChartSVG(ctxPct, 80, 8, accent)}
-        <div class="stat-sub" style="text-align:center;margin-top:4px">ctx ${ctxNow ? ctxNow.toLocaleString() : "—"} / ${nCtx.toLocaleString()}</div>
-      </div>
-      <div style="flex:1">
-        <div class="stat-label">Decode (10m)</div>
-        ${sparklineSVG(metricsData.decode, 200, 50, accent, { mode: "relative" })}
-        <div class="stat-sub">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s</div>
-        <div class="stat-label" style="margin-top:8px">Ctx (10m)</div>
-        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)", { mode: "relative" })}
-        <div class="stat-sub">now: ${ctxNow ? ctxNow.toLocaleString() : "—"} tokens</div>
-      </div>
+const _rosterSkeleton = `
+  <div class="model-section">
+    <span class="stat-label">Loaded</span>
+    <div class="roster-loaded nav-model">
+      <span class="nav-model-name roster-model-name">—</span>
+      <button class="nm-btn danger roster-unload" onclick="unloadModel()" title="Unload"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2L16 12H8.5L16 22"/><rect x="3" y="10" width="4" height="4" rx="1"/></svg></button>
     </div>
-  `;
-}
+    <span class="stat-sub roster-empty" style="display:none">No model loaded</span>
+    <ul class="roster-presets"></ul>
+  </div>
+`;
 
-// === Activity Strip ===
-const ACTIVITY_MAX_POINTS = 300; // 10 min at 2s intervals
-let activityBuffer = [];
+const _systemSkeleton = `
+  <div class="sys-grid">
+    <div class="sys-card">
+      <div class="sys-value sys-ram-val">0 GB</div>
+      <div class="sys-label sys-ram-label">RAM (0%)</div>
+      <div class="vram-track"><div class="vram-fill sys-ram-fill" style="width:0%;background:var(--cyan)"></div></div>
+    </div>
+    <div class="sys-card">
+      <div class="sys-value sys-cpu-val">0%</div>
+      <div class="sys-label sys-cpu-label">CPU</div>
+      <div class="vram-track"><div class="vram-fill sys-cpu-fill" style="width:0%;background:var(--amber)"></div></div>
+    </div>
+    <div class="sys-card sys-vram-card" style="display:none">
+      <div class="sys-value sys-vram-val">0 / 0 GB</div>
+      <div class="sys-label sys-vram-label">VRAM (0%)</div>
+      <div class="vram-track"><div class="vram-fill sys-vram-fill" style="width:0%;background:var(--cyan)"></div></div>
+    </div>
+  </div>
+`;
+
+// Pre-built SVG skeletons for the context grid (10x5 each)
+const _ctxGridSkeleton = (() => {
+  let rects = "";
+  for (let i = 0; i < 50; i++) {
+    rects += `<rect class="ctx-cell" x="${i % 10 * 7}" y="${Math.floor(i / 10) * 8}" width="6" height="7" fill="var(--bg-elev-2)" rx="1"/>`;
+  }
+  return `<svg class="ctx-svg" viewBox="0 0 70 40" style="width:100%;height:100%">${rects}</svg>`;
+})();
+
+const _promptGridSkeleton = (() => {
+  let rects = "";
+  for (let i = 0; i < 50; i++) {
+    rects += `<rect class="prompt-cell" x="${i % 10 * 7}" y="${Math.floor(i / 10) * 8}" width="6" height="7" fill="var(--bg-elev-2)" rx="1"/>`;
+  }
+  return `<svg class="prompt-svg" viewBox="0 0 70 40" style="width:100%;height:100%">${rects}</svg>`;
+})();
+
+// Pre-built GPU rings skeleton (3 circles, 0% fill)
+const _gpuRingsSkeleton = (() => {
+  const size = 60, cx = 30, cy = 30;
+  const radii = [size * 0.35, size * 0.55, size * 0.75];
+  let svg = `<svg class="gpu-rings-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+  radii.forEach((r, i) => {
+    const c = 2 * Math.PI * r;
+    svg += `<circle class="ring-${i}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink-mute)" stroke-width="4" stroke-dasharray="${c}" stroke-dashoffset="${c}" transform="rotate(-90 ${cx} ${cy})"/>`;
+  });
+  svg += `<text class="ring-label" x="${cx}" y="${cy + 5}" text-anchor="middle" fill="var(--ink)" font-size="12" font-family="monospace">—</text>`;
+  svg += "</svg>";
+  return svg;
+})();
+
+// Context widget ghost (same structure as renderContext first-render HTML)
+const _contextGhost = `
+  <div class="ctx-grid-container">
+    <div class="ctx-grid-col">
+      <div class="ctx-grid-title">Context</div>
+      <div class="ctx-svg-wrap">${_ctxGridSkeleton}</div>
+    </div>
+    <div class="ctx-grid-col">
+      <div class="ctx-grid-title">Prompt</div>
+      <div class="prompt-svg-wrap">${_promptGridSkeleton}</div>
+    </div>
+  </div>`;
+
+// === Widget Render Functions ===
+const _last = {}; // dirty-check cache per widget
+
+// Remove loading fade — content is already in place (ghost or real)
+function clearWidgetLoading(id) {
+  const el = document.getElementById(`widget-${id}`);
+  if (el && el.classList.contains("widget-loading")) {
+    el.classList.remove("widget-loading");
+  }
+}
 
 function renderActivity() {
   const el = document.getElementById("widget-activity");
   if (!el) return;
-  if (activityBuffer.length < 2) {
-    el.innerHTML = '<div class="timeline-track" style="height:50px"></div>';
-    return;
-  }
-  const w = el.clientWidth || 800;
-  const h = 50;
-  const max = Math.max(...activityBuffer, 1);
-  // Dense 1px bars forming a waveform
-  const barW = 1;
-  const visible = activityBuffer.slice(-w);
-  const bars = visible.map((v, i) => {
-    const x = i;
-    const barH = (v / max) * (h - 4);
-    const y = 2;
-    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH.toFixed(1)}" fill="var(--accent)" opacity="0.7" />`;
-  });
-  const decodeNow = activityBuffer[activityBuffer.length - 1];
-  const spanMin = (activityBuffer.length * 2) / 60;
-  el.innerHTML = `
-    <div class="timeline-header">
-      <span class="t-title">Decode Activity</span>
-      <span class="t-range">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s · last ${spanMin.toFixed(0)}m</span>
-    </div>
-    <div class="timeline-track">
-      <svg width="100%" height="${h}" preserveAspectRatio="none">${bars.join("")}</svg>
-    </div>
-  `;
-}
-
-function tickActivity() {
-  // Read current decode from metricsData
-  if (metricsData.decode.length > 0) {
-    const now = metricsData.decode[metricsData.decode.length - 1];
-    activityBuffer.push(now);
-    if (activityBuffer.length > ACTIVITY_MAX_POINTS) {
-      activityBuffer.shift();
-    }
-  }
-  renderActivity();
-}
-
-async function poll() {
-  try {
-    const [kvRes, rosterRes] = await Promise.all([
-      fetch("/api/kv/snapshots").then(r => r.json()),
-      fetch("/api/models/roster").then(r => r.json()),
-    ]);
-    data.model = kvRes.model;
-    data.snapshots = kvRes.snapshots;
-    data.presets = rosterRes.presets;
-    data.others = rosterRes.others;
-    document.getElementById("main-status").textContent = "LIVE";
-    // Only create widgets on first poll; subsequent polls just update content
-    if (!window._widgetsInitialized) {
-      renderWidgets();
-      window._widgetsInitialized = true;
-    }
-    updateDocked();
-    renderModel();
-    renderRoster();
-    renderStats();
-    fetchGpu().then(() => { tickGpuHistory(); renderGpu(); });
-    fetchMetrics().then(renderContext).then(tickActivity);
-  } catch (e) {
-    document.getElementById("main-status").textContent = "ERROR";
-  }
-}
-
-// === Renderers ===
-function escHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
-  return (bytes / 1073741824).toFixed(1) + " GB";
-}
-
-function fmtAge(mtime) {
-  if (!mtime) return "—";
-  const age = (Date.now() / 1000 - mtime);
-  if (age < 60) return Math.round(age) + "s ago";
-  if (age < 3600) return Math.round(age / 60) + "m ago";
-  if (age < 86400) return Math.round(age / 3600) + "h ago";
-  return Math.round(age / 86400) + "d ago";
-}
-
-function renderModel() {
-  const el = document.getElementById("widget-model");
-  if (!el) return;
-  const model = data.model || "—";
-  el.innerHTML = `
-    <div class="stat-label">Loaded Model</div>
-    <div class="stat-row">
-      <span class="stat-value" style="font-size:18px;">${escHtml(model)}</span>
-    </div>
-    <div class="stat-sub">${data.model ? "active" : "no model loaded"}</div>
-  `;
+  
+  const decodeRate = currentData.decode_rate || 0;
+  const promptRate = currentData.prompt_rate || 0;
+  const ctxFill = currentData.ctx_fill_pct || 0;
+  const key = `${decodeRate.toFixed(1)}|${promptRate.toFixed(1)}|${ctxFill.toFixed(0)}`;
+  if (_last.activity === key) return;
+  _last.activity = key;
+  
+  if (!el.querySelector(".act-decode")) el.innerHTML = _activitySkeleton;
+  
+  const d = el.querySelector(".act-decode");
+  const p = el.querySelector(".act-prompt");
+  const c = el.querySelector(".act-ctx");
+  if (d) d.textContent = decodeRate.toFixed(1) + " tok/s";
+  if (p) p.textContent = promptRate.toFixed(1) + " tok/s";
+  if (c) c.textContent = ctxFill.toFixed(0) + "%";
 }
 
 function renderContext() {
   const el = document.getElementById("widget-context");
   if (!el) return;
-  const nCtx = 128000;
-  const ctxNow = metricsData.ctx.length ? metricsData.ctx[metricsData.ctx.length - 1] : 0;
-  const ctxPct = Math.min((ctxNow / nCtx) * 100, 100);
-  const decodeNow = metricsData.decode.length ? metricsData.decode[metricsData.decode.length - 1] : 0;
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#8899aa";
-
-  // KV cache section
-  const snaps = data.snapshots;
-  let listHtml = "";
-  if (snaps.length === 0) {
-    listHtml = `<div class="kv-status">no snapshots</div>`;
-  } else {
-    listHtml = `<ul class="kv-list">`;
-    for (const s of snaps) {
-      listHtml += `<li>
-        <span class="kv-name">${escHtml(s.filename)}</span>
-        <span class="kv-size">${fmtSize(s.size)}</span>
-        <span class="kv-age">${fmtAge(s.mtime)}</span>
-      </li>`;
-    }
-    listHtml += `</ul>`;
-  }
-  const hasModel = !!data.model;
-
-  el.innerHTML = `
-    <div style="display:flex;gap:16px;align-items:center;margin-bottom:12px">
-      <div>
-        ${ringChartSVG(ctxPct, 80, 8, accent)}
-        <div class="stat-sub" style="text-align:center;margin-top:4px">ctx ${ctxNow ? ctxNow.toLocaleString() : "—"} / ${nCtx.toLocaleString()}</div>
+  
+  const ctxCount = currentData.ctx_grid_cells || 0;
+  const promptCount = currentData.prompt_grid_cells || 0;
+  const key = `${ctxCount}|${promptCount}`;
+  if (_last.context === key) return;
+  _last.context = key;
+  
+  // First render: build from pre-built skeletons
+  if (!el.querySelector(".ctx-svg")) {
+    el.innerHTML = `
+      <div class="ctx-grid-container">
+        <div class="ctx-grid-col">
+          <div class="ctx-grid-title">Context</div>
+          <div class="ctx-svg-wrap">${_ctxGridSkeleton}</div>
+        </div>
+        <div class="ctx-grid-col">
+          <div class="ctx-grid-title">Prompt</div>
+          <div class="prompt-svg-wrap">${_promptGridSkeleton}</div>
+        </div>
       </div>
-      <div style="flex:1">
-        <div class="stat-label">Decode (10m)</div>
-        ${sparklineSVG(metricsData.decode, 200, 50, accent, { mode: "relative" })}
-        <div class="stat-sub">now: ${decodeNow ? decodeNow.toFixed(1) : "—"} tok/s</div>
-        <div class="stat-label" style="margin-top:8px">Ctx (10m)</div>
-        ${sparklineSVG(metricsData.ctx, 200, 50, "var(--cyan)", { mode: "relative" })}
-        <div class="stat-sub">now: ${ctxNow ? ctxNow.toLocaleString() : "—"} tokens</div>
-      </div>
-    </div>
-    <div class="stat-label" style="margin-top:4px">KV Cache</div>
-    ${listHtml}
-    <div class="kv-actions">
-      <button onclick="kvSave()" ${hasModel ? "" : "disabled"}>SAVE</button>
-      <button onclick="kvRestore()" ${hasModel && snaps.length ? "" : "disabled"}>RESTORE</button>
-      <button onclick="kvSwap()" ${hasModel ? "" : "disabled"}>SWAP</button>
-      <button class="danger" onclick="kvErase()" ${hasModel ? "" : "disabled"}>ERASE</button>
-      <button class="danger" onclick="kvPrune()" ${snaps.length ? "" : "disabled"}>PRUNE</button>
-    </div>
-    <div class="kv-status" id="kv-status">—</div>
-  `;
-}
-
-function renderKV() {
-  const el = document.getElementById("widget-kv");
-  if (!el) return;
-  const snaps = data.snapshots;
-  let listHtml = "";
-  if (snaps.length === 0) {
-    listHtml = `<div class="kv-status">no snapshots</div>`;
-  } else {
-    listHtml = `<ul class="kv-list">`;
-    for (const s of snaps) {
-      listHtml += `<li>
-        <span class="kv-name">${escHtml(s.filename)}</span>
-        <span class="kv-size">${fmtSize(s.size)}</span>
-        <span class="kv-age">${fmtAge(s.mtime)}</span>
-      </li>`;
-    }
-    listHtml += `</ul>`;
+    `;
   }
-  const hasModel = !!data.model;
-  el.innerHTML = `
-    ${listHtml}
-    <div class="kv-actions">
-      <button onclick="kvSave()" ${hasModel ? "" : "disabled"}>SAVE</button>
-      <button onclick="kvRestore()" ${hasModel && snaps.length ? "" : "disabled"}>RESTORE</button>
-      <button onclick="kvSwap()" ${hasModel ? "" : "disabled"}>SWAP</button>
-      <button class="danger" onclick="kvErase()" ${hasModel ? "" : "disabled"}>ERASE</button>
-      <button class="danger" onclick="kvPrune()" ${snaps.length ? "" : "disabled"}>PRUNE</button>
-    </div>
-    <div class="kv-status" id="kv-status">—</div>
-  `;
+  
+  // Update cell fills in place (fixed 50-cell heatmap)
+  const ctxCells = el.querySelectorAll(".ctx-cell");
+  ctxCells.forEach((cell, i) => {
+    cell.setAttribute("fill", i < ctxCount ? "var(--cyan)" : "var(--bg-elev-2)");
+  });
+  const promptCells = el.querySelectorAll(".prompt-cell");
+  promptCells.forEach((cell, i) => {
+    cell.setAttribute("fill", i < promptCount ? "var(--amber)" : "var(--bg-elev-2)");
+  });
 }
 
 function renderRoster() {
   const el = document.getElementById("widget-roster");
   if (!el) return;
-  let html = `<ul class="model-list">`;
-  for (const p of data.presets) {
-    const loaded = p.name === data.model;
-    html += `<li>
-      <span class="m-name ${loaded ? "loaded" : ""}">${escHtml(p.name)}</span>
-      ${loaded ? "" : `<button class="m-btn" onclick="loadModel('${escHtml(p.name)}')">LOAD</button>`}
-    </li>`;
+  
+  const presets = currentData.presets || [];
+  const loadedModel = currentData.model || "";
+  const key = `${loadedModel}|${presets.map(p => p.name).join(",")}`;
+  if (_last.roster === key) return;
+  _last.roster = key;
+  
+  if (!el.querySelector(".roster-loaded")) el.innerHTML = _rosterSkeleton;
+  
+  const loadedEl = el.querySelector(".roster-loaded");
+  const emptyEl = el.querySelector(".roster-empty");
+  const nameEl = el.querySelector(".roster-model-name");
+  const presetsEl = el.querySelector(".roster-presets");
+  
+  if (loadedModel) {
+    if (loadedEl) loadedEl.style.display = "";
+    if (emptyEl) emptyEl.style.display = "none";
+    if (nameEl) nameEl.textContent = shortName(loadedModel);
+  } else {
+    if (loadedEl) loadedEl.style.display = "none";
+    if (emptyEl) emptyEl.style.display = "";
   }
-  for (const name of data.others) {
-    html += `<li><span class="m-name" style="color:var(--ink-mute);">${escHtml(name)}</span></li>`;
+  
+  const otherPresets = presets.filter(p => p.name !== loadedModel);
+  if (presetsEl) {
+    presetsEl.innerHTML = otherPresets.map(p => `
+      <li class="nav-model dim" style="display:flex;justify-content:space-between;padding:8px;margin-top:4px;background:var(--bg-elev-2);border-radius:4px">
+        <span class="nav-model-name">${escHtml(shortName(p.name))}</span>
+        <button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+      </li>
+    `).join("");
   }
-  html += `</ul>`;
-  el.innerHTML = html;
 }
 
-function renderStats() {
-  const el = document.getElementById("widget-stats");
+function renderGpu() {
+  const el = document.getElementById("widget-gpu");
   if (!el) return;
-  if (!window._statsInitialized) {
+  
+  if (!gpuData) {
+    el.innerHTML = `<div class="stat-sub">No GPU data</div>`;
+    return;
+  }
+  
+  const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
+  const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
+  const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
+  const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
+  const key = `${tempPct.toFixed(0)}|${(gpuData.gfx_percent || 0).toFixed(0)}|${(gpuData.power_w || 0).toFixed(0)}`;
+  if (_last.gpu === key) return;
+  _last.gpu = key;
+  
+  // First render: build from pre-built skeleton
+  if (!el.querySelector(".gpu-rings-svg")) {
     el.innerHTML = `
-      <div class="stat-label">Live Metrics</div>
-      <div class="stat-sub" id="stats-sub">loading…</div>
+      <div class="gpu-stats">
+        <div class="gpu-stat">
+          <div class="gpu-stat-value">—</div>
+          <div class="gpu-stat-label">Temperature</div>
+        </div>
+        <div class="gpu-stat">
+          <div class="gpu-stat-value">—</div>
+          <div class="gpu-stat-label">Power</div>
+        </div>
+        <div class="gpu-stat">
+          <div class="gpu-stat-value">—</div>
+          <div class="gpu-stat-label">Utilization</div>
+        </div>
+      </div>
+      <div id="gpu-rings">${_gpuRingsSkeleton}</div>
     `;
-    window._statsInitialized = true;
+    clearWidgetLoading("gpu");
   }
-  fetchStats();
+
+  // Update stat values in place
+  const vals = el.querySelectorAll(".gpu-stat-value");
+  if (vals.length === 3) {
+    vals[0].textContent = temp;
+    vals[1].textContent = (gpuData.power_w || 0).toFixed(1) + "W";
+    vals[2].textContent = (gpuData.gfx_percent || 0) + "%";
+  }
+  
+  // Update rings in place
+  // Scale rings SVG to match widget scale
+  const ringsSvg = el.querySelector(".gpu-rings-svg");
+  if (ringsSvg) {
+    const scale = parseFloat(getComputedStyle(el.closest(".widget") || el).getPropertyValue("--widget-scale")) || 1;
+    const sz = Math.round(60 * scale);
+    ringsSvg.setAttribute("width", sz);
+    ringsSvg.setAttribute("height", sz);
+  }
+  
+  const rings = el.querySelectorAll(".gpu-rings-svg circle");
+  const ringData = [
+    { pct: tempPct, color: tempColor },
+    { pct: gpuData.gfx_percent || 0, color: "#a78bfa" },
+    { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)" }
+  ];
+  rings.forEach((ring, i) => {
+    const c = parseFloat(ring.getAttribute("stroke-dasharray"));
+    const offset = c - (ringData[i].pct / 100) * c;
+    ring.setAttribute("stroke-dashoffset", offset);
+    ring.setAttribute("stroke", ringData[i].color);
+  });
+  const label = el.querySelector(".gpu-rings-svg .ring-label");
+  if (label) {
+    label.textContent = temp;
+    label.setAttribute("fill", tempColor);
+  }
 }
 
-async function fetchStats() {
-  const el = document.getElementById("stats-sub");
+function renderSystem() {
+  const el = document.getElementById("widget-system");
   if (!el) return;
-  try {
-    // Query via sidecar proxy to avoid CORS
-    const [r1, r2] = await Promise.all([
-      fetch("/api/prometheus/query?query=llamacpp:predicted_tokens_seconds").then(r => r.json()),
-      fetch("/api/prometheus/query?query=llamacpp:n_tokens_max").then(r => r.json()),
-    ]);
-    const decode = r1.data?.result?.[0]?.value?.[1] || "0";
-    const nTokens = r2.data?.result?.[0]?.value?.[1] || "0";
-    el.innerHTML = `decode: <b>${decode}</b> tok/s · ctx: <b>${nTokens}</b> tokens`;
-  } catch {
-    el.innerHTML = "metrics unavailable";
+  
+  if (!systemData) {
+    el.innerHTML = `<div class="stat-sub">No system data</div>`;
+    return;
   }
-}
-
-// === KV actions ===
-async function kvAction(action, payload = {}) {
-  const status = document.getElementById("kv-status");
-  if (status) status.textContent = "…";
-  try {
-    const resp = await fetch(`/api/kv/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const d = await resp.json();
-    if (status) {
-      if (d.error) status.textContent = "error: " + d.error;
-      else status.textContent = JSON.stringify(d).slice(0, 100);
+  
+  const ramPct = systemData.ram_used_pct || 0;
+  const cpuPct = systemData.cpu_percent || 0;
+  const gpuVramUsedMb = (gpuData?.vram_used_mib || 0) * 1.048576;
+  const gpuVramTotalMb = (gpuData?.vram_total_mib || 0) * 1.048576;
+  const vramPct = gpuVramTotalMb > 0 ? (gpuVramUsedMb / gpuVramTotalMb) * 100 : 0;
+  const key = `${ramPct.toFixed(0)}|${cpuPct.toFixed(0)}|${vramPct.toFixed(0)}`;
+  if (_last.system === key) return;
+  _last.system = key;
+  
+  if (!el.querySelector(".sys-ram-val")) el.innerHTML = _systemSkeleton;
+  
+  const ramVal = el.querySelector(".sys-ram-val");
+  const ramLabel = el.querySelector(".sys-ram-label");
+  const ramFill = el.querySelector(".sys-ram-fill");
+  const cpuVal = el.querySelector(".sys-cpu-val");
+  const cpuFill = el.querySelector(".sys-cpu-fill");
+  const vramCard = el.querySelector(".sys-vram-card");
+  const vramVal = el.querySelector(".sys-vram-val");
+  const vramLabel = el.querySelector(".sys-vram-label");
+  const vramFill = el.querySelector(".sys-vram-fill");
+  
+  if (ramVal) ramVal.textContent = (systemData.ram_used_mb || 0).toFixed(0) + " GB";
+  if (ramLabel) ramLabel.textContent = `RAM (${ramPct.toFixed(0)}%)`;
+  if (ramFill) ramFill.style.width = ramPct + "%";
+  if (cpuVal) cpuVal.textContent = cpuPct.toFixed(0) + "%";
+  if (cpuFill) cpuFill.style.width = cpuPct + "%";
+  
+  if (vramCard) {
+    if (gpuVramTotalMb > 0) {
+      vramCard.style.display = "";
+      if (vramVal) vramVal.textContent = `${(gpuVramUsedMb / 1024).toFixed(1)} / ${(gpuVramTotalMb / 1024).toFixed(1)} GB`;
+      if (vramLabel) vramLabel.textContent = `VRAM (${vramPct.toFixed(0)}%)`;
+      if (vramFill) vramFill.style.width = vramPct + "%";
+    } else {
+      vramCard.style.display = "none";
     }
-    poll();
-  } catch (e) {
-    if (status) status.textContent = "error: " + e.message;
   }
 }
 
-function kvSave() {
-  const name = prompt("Snapshot name (default: timestamp):", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
-  if (name !== null) kvAction("save", { filename: name });
-}
-function kvRestore() {
-  if (confirm("Restore the most recent snapshot?")) kvAction("restore");
-}
-function kvSwap() {
-  if (confirm("Swap: save current + erase slot?")) kvAction("swap");
-}
-function kvErase() {
-  if (confirm("Erase the slot? Active context will be lost.")) kvAction("erase");
-}
-function kvPrune() {
-  const keep = prompt("Keep how many most recent snapshots?", "3");
-  if (keep !== null && confirm(`Prune to keep ${keep} most recent?`)) kvAction("prune", { keep: parseInt(keep) || 3 });
-}
-
-// === Model actions ===
-async function loadModel(name) {
+// === Model Control Functions ===
+async function loadModel(modelName) {
   try {
-    const resp = await fetch("/api/models/load", {
+    await apiFetch("/api/models/load", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: name }),
+      body: JSON.stringify({ model: modelName })
     });
-    const d = await resp.json();
-    if (d.error) alert("Load failed: " + d.error);
-    poll();
+    WidgetSystem.emit(EVT.MODEL_CHANGE, { model: modelName });
   } catch (e) {
-    alert("Load failed: " + e.message);
+    console.error("Failed to load model:", e);
   }
 }
+
+async function unloadModel() {
+  try {
+    const model = currentData.model;
+    if (!model) return;
+    await apiFetch("/api/models/unload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: model })
+    });
+    WidgetSystem.emit(EVT.MODEL_CHANGE, { model: null });
+  } catch (e) {
+    console.error("Failed to unload model:", e);
+  }
+}
+
+// === Log Drawer Functions ===
+function toggleLogDrawer() {
+  const drawer = document.getElementById("log-drawer");
+  if (!drawer) return;
+  
+  drawer.classList.toggle("collapsed");
+  localStorage.setItem(WidgetSystem.LOG_DRAWER_KEY, !drawer.classList.contains("collapsed"));
+}
+
+function scrollLogToBottom() {
+  const viewer = document.getElementById("log-viewer");
+  if (viewer) viewer.scrollTop = viewer.scrollHeight;
+}
+
+function copyLog() {
+  const viewer = document.getElementById("log-viewer");
+  if (!viewer) return;
+  
+  navigator.clipboard.writeText(viewer.textContent).then(() => {
+    // Brief visual feedback
+    const btn = document.getElementById("log-copy-btn");
+    if (btn) {
+      btn.textContent = "✓";
+      setTimeout(() => btn.textContent = "⊘", 1000);
+    }
+  });
+}
+
+function saveLog() {
+  const viewer = document.getElementById("log-viewer");
+  if (!viewer) return;
+  
+  const blob = new Blob([viewer.textContent], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `llm-serve-log-${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// === Data Fetching & Polling ===
+async function fetchMetrics() {
+  try {
+    // Fetch slots data for activity metrics
+    const slotsData = await apiFetch("/api/slots");
+    console.log("Slots data:", slotsData);
+    
+    // Compute rates from deltas against previous snapshot
+    if (slotsData && Array.isArray(slotsData) && slotsData.length > 0) {
+      const slot = slotsData[0];
+      const total = slot.n_prompt_tokens_total || 0;
+      const cache = slot.n_prompt_tokens_cache || 0;
+      const processed = slot.n_prompt_tokens_processed || 0;
+      
+      let decode_rate = 0, prompt_rate = 0;
+      if (prevSlot) {
+        const dt = (Date.now() - prevSlot.timestamp) / 1000; // seconds
+        if (dt > 0) {
+          decode_rate = (slot.decode_tokens_seconds - prevSlot.decode_tokens_seconds) / dt;
+          prompt_rate = (slot.prompt_tokens_seconds - prevSlot.prompt_tokens_seconds) / dt;
+        }
+      } else {
+        // First poll: use raw values as a rough estimate
+        decode_rate = slot.decode_tokens_seconds || 0;
+        prompt_rate = slot.prompt_tokens_seconds || 0;
+      }
+      
+      currentData = {
+        decode_rate: Math.max(0, decode_rate),
+        prompt_rate: Math.max(0, prompt_rate),
+        ctx_fill_pct: total > 0 ? Math.min((cache / total) * 100, 100) : 0,
+        // Map to fixed 50-cell heatmap (proportional fill)
+        ctx_grid_cells: total > 0 ? Math.round((cache / total) * 50) : 0,
+        prompt_grid_cells: total > 0 ? Math.round((processed / total) * 50) : 0,
+        ...currentData
+      };
+      console.log("Updated currentData:", currentData);
+      // Store snapshot for next delta computation
+      prevSlot = { decode_tokens_seconds: slot.decode_tokens_seconds, prompt_tokens_seconds: slot.prompt_tokens_seconds, timestamp: Date.now() };
+    }
+    
+    // Fetch model roster data (sidecar proxies /api/models/roster)
+    const modelsData = await apiFetch("/api/models/roster");
+    console.log("Models data:", modelsData);
+    if (modelsData) {
+      currentData.presets = modelsData.presets || [];
+      const loaded = modelsData.model || null;
+      if (loaded !== currentData.model) {
+        currentData.model = loaded;
+        // Persist last-seen model as an offline fallback. It is not a
+        // user preference and is not surfaced in the settings panel.
+        if (loaded) WidgetSystem.config.loadedModel = loaded;
+        else WidgetSystem.config.loadedModel = "";
+        WidgetSystem.saveConfig(WidgetSystem.config);
+        WidgetSystem.emit(EVT.MODEL_CHANGE, { model: loaded });
+      }
+      console.log("Updated model data:", currentData.model, currentData.presets);
+    }
+    
+  } catch (e) {
+    console.error("Failed to fetch metrics:", e);
+  }
+}
+
+async function fetchGpu() {
+  try {
+    const res = await apiFetch("/api/gpu");
+    console.log("GPU API response:", res);
+    if (res && typeof res === 'object') {
+      gpuData = res;
+      WidgetSystem.emit(EVT.GPU_UPDATE, gpuData);
+    } else {
+      console.warn("Invalid GPU data format:", res);
+    }
+  } catch (e) {
+    console.error("Failed to fetch GPU data:", e);
+  }
+}
+
+async function fetchSystem() {
+  try {
+    const res = await apiFetch("/api/system");
+    console.log("System API response:", res);
+    if (res && typeof res === 'object') {
+      systemData = res;
+      WidgetSystem.emit(EVT.SYSTEM_UPDATE, systemData);
+    } else {
+      console.warn("Invalid system data format:", res);
+    }
+  } catch (e) {
+    console.error("Failed to fetch system data:", e);
+  }
+}
+
+async function fetchLog() {
+  try {
+    const logData = await apiFetch("/api/log?lines=100");
+    const lines = (logData && Array.isArray(logData.lines)) ? logData.lines : [];
+    if (!lines.length) return;
+    const viewer = document.getElementById("log-viewer");
+    if (viewer) {
+      viewer.innerHTML = "";
+      lines.forEach(text => {
+        const line = document.createElement("div");
+        const low = text.toLowerCase();
+        line.style.color = low.includes("error") ? "var(--red)" :
+                           low.includes("warn") ? "var(--amber)" : "var(--ink-dim)";
+        line.textContent = text;
+        viewer.appendChild(line);
+      });
+    }
+    const countEl = document.getElementById("log-drawer-count");
+    if (countEl) countEl.textContent = `${lines.length} lines`;
+    logEntries = lines;
+    WidgetSystem.emit(EVT.LOG_ENTRY, { count: lines.length });
+  } catch (e) {
+    console.error("Failed to fetch log:", e);
+  }
+}
+
+async function poll() {
+  try {
+    await Promise.all([
+      fetchMetrics().catch(() => {}),
+      fetchGpu().catch(() => {}),
+      fetchSystem().catch(() => {}),
+      fetchLog().catch(() => {})
+    ]);
+    
+    // Update main status
+    document.getElementById("main-status").textContent = "LIVE";
+    
+    // Only create widgets on first poll; subsequent polls just update content
+    if (!window._widgetsInitialized) {
+      WidgetSystem.renderWidgets();
+      window._widgetsInitialized = true;
+      // Safety: clear any remaining spinners after first poll (data may not have arrived)
+      ["activity", "context", "roster", "gpu", "system"].forEach(id => clearWidgetLoading(id));
+    }
+
+    // Re-render widgets that read from module state
+    renderActivity();
+    renderContext();
+    renderRoster();
+
+  } catch (e) {
+    console.error("Poll failed:", e);
+    document.getElementById("main-status").textContent = "ERROR";
+  }
+}
+
+// === Theme Toggle ===
+document.getElementById("theme-toggle")?.addEventListener("click", () => {
+  const themes = ["", "theme-slate", "theme-amd", "theme-nvidia", "theme-intel"];
+  let currentTheme = document.documentElement.className;
+  let nextIdx = (themes.indexOf(currentTheme) + 1) % themes.length;
+  
+  // Remove all theme classes
+  themes.forEach(t => t && document.documentElement.classList.remove(t));
+  
+  // Add new theme class if not empty
+  if (themes[nextIdx]) {
+    document.documentElement.classList.add(themes[nextIdx]);
+  }
+  
+  localStorage.setItem(WidgetSystem.THEME_KEY, document.documentElement.className);
+});
+
+// === Log Drawer Restore State ===
+document.addEventListener("DOMContentLoaded", () => {
+  const savedState = localStorage.getItem(WidgetSystem.LOG_DRAWER_KEY);
+  if (savedState !== null) {
+    const drawer = document.getElementById("log-drawer");
+    // Saved state: true = was open, false = was closed
+    // Only add collapsed if the user previously had it closed
+    if (drawer && !JSON.parse(savedState)) {
+      drawer.classList.add("collapsed");
+    }
+  }
+});
 
 // === Init ===
-renderWidgets();
-poll();
-setInterval(poll, 2000);
+console.log("Sidecar v2 initializing...");
+console.log("Config:", WidgetSystem.config);
+
+WidgetSystem.init();
+poll().then(() => {
+  console.log("First poll complete. Data:", currentData, gpuData, systemData);
+}).catch(e => console.error("Initial poll failed:", e));
+
+setInterval(poll, POLL_INTERVAL);
+console.log(`Polling every ${POLL_INTERVAL}ms`);
 </script>
 </body>
 </html>
