@@ -80,6 +80,130 @@ def loaded_model():
     return None
 
 
+# --- Worker metrics ---
+
+_METRIC_HOLD_MAX_S = 10.0  # expire a held gauge after this much idle time
+_METRIC_HOLDS = {}  # {key: (value, last_live_time)}
+
+
+def _worker_port():
+    """Discover the loaded model's worker port from the router's /v1/models args.
+    Returns None when nothing is loaded or the port can't be read."""
+    try:
+        d = router_get("/v1/models")
+        for m in d.get("data", []):
+            if m.get("id") == ".noindex":
+                continue
+            status = m.get("status", {})
+            if not (isinstance(status, dict) and status.get("value") == "loaded"):
+                continue
+            args = status.get("args", [])
+            for i, a in enumerate(args):
+                if a == "--port" and i + 1 < len(args):
+                    try:
+                        port = int(args[i + 1])
+                        if port > 0:
+                            return port
+                    except (ValueError, TypeError):
+                        pass
+    except Exception:
+        pass
+    return None
+
+
+def _http_json(port, path, timeout=5):
+    """GET http://127.0.0.1:<port><path> and parse JSON. Returns {} on any failure."""
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}", headers={"User-Agent": "curl"})
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        return json.loads(resp.read().decode("utf-8", errors="replace"))
+    except Exception:
+        return {}
+
+
+def _http_text(port, path, timeout=5):
+    """GET http://127.0.0.1:<port><path> as text. Returns '' on any failure."""
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}", headers={"User-Agent": "curl"})
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        return resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _parse_prometheus(text):
+    """Parse Prometheus exposition text into {metric_name: value}.
+    Ignores comments, blank lines, and label-qualified series (keeps the bare name)."""
+    out = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        if "{" in name:  # label-qualified series — skip
+            continue
+        try:
+            out[name] = float(parts[1])
+        except ValueError:
+            continue
+    return out
+
+
+def _hold(key, value, now):
+    """Hold the last live gauge reading with its age. llama.cpp's rate gauges read 0
+    the moment a generation ends, so we keep the last non-zero reading and report its
+    age; once idle for _METRIC_HOLD_MAX_S the value expires to 0 (idle, not stale)."""
+    held, last_live = _METRIC_HOLDS.get(key, (0.0, 0.0))
+    if value > 0:
+        held, last_live = value, now
+    elif now - last_live > _METRIC_HOLD_MAX_S:
+        held, last_live = 0.0, 0.0
+    _METRIC_HOLDS[key] = (held, last_live)
+    age = (now - last_live) if last_live and held > 0 else None
+    return held, age
+
+
+def worker_metrics():
+    """Scrape the loaded worker's /metrics + /props and derive dashboard metrics.
+    Returns a dict, or {} when no worker is reachable."""
+    port = _worker_port()
+    if not port:
+        return {}
+    metrics = _parse_prometheus(_http_text(port, "/metrics"))
+    props = _http_json(port, "/props")
+    if not metrics and not props:
+        return {}
+    n_ctx = (props.get("default_generation_settings", {}) or {}).get("n_ctx", 0)
+    n_tokens_max = metrics.get("llamacpp:n_tokens_max", 0)
+    kv_ratio = metrics.get("llamacpp:kv_cache_usage_ratio", 0)
+    if not kv_ratio and n_tokens_max and n_ctx:
+        kv_ratio = n_tokens_max / n_ctx
+    now = time.time()
+    decode_tps, decode_age = _hold("tg", metrics.get("llamacpp:predicted_tokens_seconds", 0), now)
+    prompt_tps, prompt_age = _hold("pp", metrics.get("llamacpp:prompt_tokens_seconds", 0), now)
+    spec_acc = metrics.get("llamacpp:spec_decode_num_accepted_tokens_total", 0)
+    spec_draft = metrics.get("llamacpp:spec_decode_num_draft_tokens_total", 0)
+    return {
+        "port": port,
+        "n_ctx": n_ctx,
+        "ctx_used_tokens": int(n_tokens_max) if n_tokens_max else int(kv_ratio * n_ctx),
+        "ctx_fill_pct": round(kv_ratio * 100, 1) if n_ctx else 0,
+        "decode_tps": round(decode_tps, 1),
+        "decode_tps_age_s": round(decode_age, 1) if decode_age else None,
+        "prompt_tps": round(prompt_tps, 1),
+        "prompt_tps_age_s": round(prompt_age, 1) if prompt_age else None,
+        "spec_accept_pct": round(100.0 * spec_acc / spec_draft, 1) if spec_draft > 0 else None,
+        "requests_processing": metrics.get("llamacpp:requests_processing", 0),
+        "requests_waiting": metrics.get("llamacpp:requests_deferred", 0),
+        "busy_slots_per_decode": metrics.get("llamacpp:n_busy_slots_per_decode"),
+    }
+
+
 # --- KV registry ---
 
 def _kv_read_registry():
@@ -352,6 +476,8 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             self._json(200, {"presets": presets, "others": others, "model": model})
         elif path == "/api/gpu":
             self._json(200, detect_gpu())
+        elif path == "/api/metrics":
+            self._json(200, worker_metrics())
         elif path == "/api/slots":
             model = loaded_model()
             if not model:
