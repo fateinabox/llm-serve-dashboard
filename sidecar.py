@@ -188,6 +188,22 @@ def worker_metrics():
     prompt_tps, prompt_age = _hold("pp", metrics.get("llamacpp:prompt_tokens_seconds", 0), now)
     spec_acc = metrics.get("llamacpp:spec_decode_num_accepted_tokens_total", 0)
     spec_draft = metrics.get("llamacpp:spec_decode_num_draft_tokens_total", 0)
+
+    # Prompt-ingestion progress: the router's /slots exposes n_prompt_tokens_processed
+    # (tokens of the current prompt already ingested) and n_prompt_tokens_total. This is
+    # the per-request ingestion progress — 0 when idle, ramps to 100% during prefill.
+    prompt_processed = prompt_total = 0
+    model = loaded_model()
+    if model:
+        try:
+            d = router_get("/slots", query=f"model={urllib.parse.quote(model)}")
+            slots = d if isinstance(d, list) else d.get("slots", [])
+            if slots:
+                prompt_processed = slots[0].get("n_prompt_tokens_processed", 0)
+                prompt_total = slots[0].get("n_prompt_tokens_total", 0)
+        except Exception:
+            pass
+
     return {
         "port": port,
         "n_ctx": n_ctx,
@@ -198,6 +214,7 @@ def worker_metrics():
         "prompt_tps": round(prompt_tps, 1),
         "prompt_tps_age_s": round(prompt_age, 1) if prompt_age else None,
         "spec_accept_pct": round(100.0 * spec_acc / spec_draft, 1) if spec_draft > 0 else None,
+        "prompt_ingest_pct": round(100.0 * prompt_processed / prompt_total, 1) if prompt_total > 0 else 0,
         "requests_processing": metrics.get("llamacpp:requests_processing", 0),
         "requests_waiting": metrics.get("llamacpp:requests_deferred", 0),
         "busy_slots_per_decode": metrics.get("llamacpp:n_busy_slots_per_decode"),

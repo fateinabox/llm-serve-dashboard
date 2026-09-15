@@ -1235,6 +1235,25 @@ const _promptBlockCells = (() => {
   return html;
 })();
 
+// Fixed pseudo-random fill order for the context/prompt grids: a shuffled 0..255
+// permutation. Filling the first N of this order lights cells in a scattered
+// pattern instead of a linear sweep. Deterministic (seeded LCG) so the pattern
+// is stable across polls.
+const _ctxSparseOrder = (() => {
+  const n = 256;
+  let seed = 0x9e3779b9;
+  const rand = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const order = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+})();
+
 // Pre-built GPU rings skeleton (3 circles, 0% fill)
 const _gpuRingsSkeleton = (() => {
   const size = 60, cx = 30, cy = 30;
@@ -1307,21 +1326,17 @@ function renderContext() {
   
   // Context grid: true context fill from the worker's n_tokens_max / n_ctx.
   const ctxFill = currentData.ctx_fill_pct || 0;
-  // Prompt grid: prompt-processing share of the context window — the fraction of
-  // the window that is prompt (prefill) vs. generated. Derived from the held
-  // prompt/decode rates: prompt/(prompt+decode) of the active context.
-  const promptRate = currentData.prompt_rate || 0;
-  const decodeRate = currentData.decode_rate || 0;
-  const promptPct = (promptRate + decodeRate) > 0
-    ? Math.min((promptRate / (promptRate + decodeRate)) * 100, 100)
-    : 0;
+  // Prompt grid: prompt-ingestion progress — the fraction of the current prompt
+  // already ingested (n_prompt_tokens_processed / n_prompt_tokens_total). 0 when idle,
+  // ramps to 100% during prefill.
+  const promptIngest = currentData.prompt_ingest_pct || 0;
 
   const ctxN = Math.round((ctxFill / 100) * 256);
-  const promptN = Math.round((promptPct / 100) * 256);
+  const promptN = Math.round((promptIngest / 100) * 256);
   const key = `${ctxN}|${promptN}`;
   if (_last.context === key) return;
   _last.context = key;
-  
+
   // First render: build from pre-built skeletons
   if (!el.querySelector(".blk-grid-wrap")) {
     el.innerHTML = `
@@ -1337,32 +1352,23 @@ function renderContext() {
       </div>
     `;
   }
-  
-  // Fill cells — toggle .filled class on each block cell
-  const ctxBlocks = el.querySelector("#ctx-blocks");
-  const promptBlocks = el.querySelector("#prompt-blocks");
-  if (ctxBlocks) {
+
+  // Sparse fill: cells light up in a fixed pseudo-random order (not a linear sweep),
+  // so the grid reads as scattered occupancy rather than a growing bar.
+  const fillSparse = (blocks, n) => {
+    if (!blocks) return;
+    const order = _ctxSparseOrder;
     for (let i = 0; i < 256; i++) {
-      // Toggle 'filled' class: ctx-blk.filled → cyan, no class → bg-elev-2
-      const cell = ctxBlocks.children[i];
-      if (i < ctxN) {
+      const cell = blocks.children[i];
+      if (order[i] < n) {
         cell.classList.add("filled");
       } else {
         cell.classList.remove("filled");
       }
     }
-  }
-  if (promptBlocks) {
-    for (let i = 0; i < 256; i++) {
-      // Toggle 'filled' class: prompt-blk.filled → amber, no class → bg-elev-2
-      const cell = promptBlocks.children[i];
-      if (i < promptN) {
-        cell.classList.add("filled");
-      } else {
-        cell.classList.remove("filled");
-      }
-    }
-  }
+  };
+  fillSparse(el.querySelector("#ctx-blocks"), ctxN);
+  fillSparse(el.querySelector("#prompt-blocks"), promptN);
 }
 
 function renderRoster() {
@@ -1616,6 +1622,7 @@ async function fetchMetrics() {
         ctx_used_tokens: metricsData.ctx_used_tokens || 0,
         n_ctx: metricsData.n_ctx || 0,
         spec_accept_pct: metricsData.spec_accept_pct,
+        prompt_ingest_pct: metricsData.prompt_ingest_pct || 0,
         requests_processing: metricsData.requests_processing || 0,
         requests_waiting: metricsData.requests_waiting || 0,
         ...currentData
