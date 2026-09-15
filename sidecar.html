@@ -1327,22 +1327,29 @@ function renderContext() {
     `;
   }
   
-  // Fill cells — set background directly using computed CSS variable values
-  const rootStyle = getComputedStyle(document.documentElement);
-  const cyanColor = rootStyle.getPropertyValue("--cyan").trim();
-  const amberColor = rootStyle.getPropertyValue("--amber").trim();
-  const bgElev2 = rootStyle.getPropertyValue("--bg-elev-2").trim() || "#161a1f";
-  
+  // Fill cells — toggle .filled class on each block cell
   const ctxBlocks = el.querySelector("#ctx-blocks");
   const promptBlocks = el.querySelector("#prompt-blocks");
   if (ctxBlocks) {
     for (let i = 0; i < 256; i++) {
-      ctxBlocks.children[i].style.background = i < ctxN ? cyanColor : bgElev2;
+      // Toggle 'filled' class: ctx-blk.filled → cyan, no class → bg-elev-2
+      const cell = ctxBlocks.children[i];
+      if (i < ctxN) {
+        cell.classList.add("filled");
+      } else {
+        cell.classList.remove("filled");
+      }
     }
   }
   if (promptBlocks) {
     for (let i = 0; i < 256; i++) {
-      promptBlocks.children[i].style.background = i < promptN ? amberColor : bgElev2;
+      // Toggle 'filled' class: prompt-blk.filled → amber, no class → bg-elev-2
+      const cell = promptBlocks.children[i];
+      if (i < promptN) {
+        cell.classList.add("filled");
+      } else {
+        cell.classList.remove("filled");
+      }
     }
   }
 }
