@@ -161,6 +161,21 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 /* Context grid */
 .ctx-grid-container { display: flex; gap: calc(20px * var(--widget-scale, 1)); height: calc(200px * var(--widget-scale, 1)); }
 .ctx-grid-col { flex: 1; position: relative; background: var(--bg-elev-2); border-radius: 8px; overflow: hidden; padding: calc(12px * var(--widget-scale, 1)); }
+.blk-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  grid-template-rows: repeat(16, 1fr);
+  gap: 1px;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+}
+.blk-cell {
+  background: var(--bg-elev-2);
+  border-radius: 1px;
+  transition: background .3s ease-out;
+}
+.ctx-blk.filled { background: var(--cyan); }
+.prompt-blk.filled { background: var(--amber); }
 .ctx-grid-title { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); margin-bottom: calc(8px * var(--widget-scale, 1)); text-transform: uppercase; letter-spacing: .5px; }
 
 /* Sparklines */
@@ -1207,21 +1222,19 @@ const _systemSkeleton = `
   </div>
 `;
 
-// Pre-built SVG skeletons for the context grid (10x5 each)
-const _ctxGridSkeleton = (() => {
-  let rects = "";
-  for (let i = 0; i < 50; i++) {
-    rects += `<rect class="ctx-cell" x="${i % 10 * 7}" y="${Math.floor(i / 10) * 8}" width="6" height="7" fill="var(--bg-elev-2)" rx="1"/>`;
-  }
-  return `<svg class="ctx-svg" viewBox="0 0 70 40" style="width:100%;height:100%">${rects}</svg>`;
+// Pre-built block-cell skeletons for context widget (16x16 = 256 cells each)
+const _ctxBlockCells = (() => {
+  const n = 256;
+  let html = "";
+  for (let i = 0; i < n; i++) html += `<span class="blk-cell ctx-blk"></span>`;
+  return html;
 })();
 
-const _promptGridSkeleton = (() => {
-  let rects = "";
-  for (let i = 0; i < 50; i++) {
-    rects += `<rect class="prompt-cell" x="${i % 10 * 7}" y="${Math.floor(i / 10) * 8}" width="6" height="7" fill="var(--bg-elev-2)" rx="1"/>`;
-  }
-  return `<svg class="prompt-svg" viewBox="0 0 70 40" style="width:100%;height:100%">${rects}</svg>`;
+const _promptBlockCells = (() => {
+  const n = 256;
+  let html = "";
+  for (let i = 0; i < n; i++) html += `<span class="blk-cell prompt-blk"></span>`;
+  return html;
 })();
 
 // Pre-built GPU rings skeleton (3 circles, 0% fill)
@@ -1243,11 +1256,11 @@ const _contextGhost = `
   <div class="ctx-grid-container">
     <div class="ctx-grid-col">
       <div class="ctx-grid-title">Context</div>
-      <div class="ctx-svg-wrap">${_ctxGridSkeleton}</div>
+      <div class="blk-grid-wrap" id="ctx-blocks">${_ctxBlockCells}</div>
     </div>
     <div class="ctx-grid-col">
       <div class="ctx-grid-title">Prompt</div>
-      <div class="prompt-svg-wrap">${_promptGridSkeleton}</div>
+      <div class="blk-grid-wrap" id="prompt-blocks">${_promptBlockCells}</div>
     </div>
   </div>`;
 
@@ -1287,37 +1300,51 @@ function renderContext() {
   const el = document.getElementById("widget-context");
   if (!el) return;
   
-  const ctxCount = currentData.ctx_grid_cells || 0;
-  const promptCount = currentData.prompt_grid_cells || 0;
-  const key = `${ctxCount}|${promptCount}`;
+  const ctxFill = currentData.ctx_fill_pct || 0;
+  const promptRate = currentData.prompt_rate || 0;
+  // Normalize prompt rate to 0-100% (assume max ~100 tok/s for full grid)
+  const promptPct = Math.min(promptRate / 100 * 100, 100);
+  
+  const ctxN = Math.round((ctxFill / 100) * 256);
+  const promptN = Math.round((promptPct / 100) * 256);
+  const key = `${ctxN}|${promptN}`;
   if (_last.context === key) return;
   _last.context = key;
   
   // First render: build from pre-built skeletons
-  if (!el.querySelector(".ctx-svg")) {
+  if (!el.querySelector(".blk-grid-wrap")) {
     el.innerHTML = `
       <div class="ctx-grid-container">
         <div class="ctx-grid-col">
           <div class="ctx-grid-title">Context</div>
-          <div class="ctx-svg-wrap">${_ctxGridSkeleton}</div>
+          <div class="blk-grid-wrap" id="ctx-blocks">${_ctxBlockCells}</div>
         </div>
         <div class="ctx-grid-col">
           <div class="ctx-grid-title">Prompt</div>
-          <div class="prompt-svg-wrap">${_promptGridSkeleton}</div>
+          <div class="blk-grid-wrap" id="prompt-blocks">${_promptBlockCells}</div>
         </div>
       </div>
     `;
   }
   
-  // Update cell fills in place (fixed 50-cell heatmap)
-  const ctxCells = el.querySelectorAll(".ctx-cell");
-  ctxCells.forEach((cell, i) => {
-    cell.setAttribute("fill", i < ctxCount ? "var(--cyan)" : "var(--bg-elev-2)");
-  });
-  const promptCells = el.querySelectorAll(".prompt-cell");
-  promptCells.forEach((cell, i) => {
-    cell.setAttribute("fill", i < promptCount ? "var(--amber)" : "var(--bg-elev-2)");
-  });
+  // Fill cells — set background directly using computed CSS variable values
+  const rootStyle = getComputedStyle(document.documentElement);
+  const cyanColor = rootStyle.getPropertyValue("--cyan").trim();
+  const amberColor = rootStyle.getPropertyValue("--amber").trim();
+  const bgElev2 = rootStyle.getPropertyValue("--bg-elev-2").trim() || "#161a1f";
+  
+  const ctxBlocks = el.querySelector("#ctx-blocks");
+  const promptBlocks = el.querySelector("#prompt-blocks");
+  if (ctxBlocks) {
+    for (let i = 0; i < 256; i++) {
+      ctxBlocks.children[i].style.background = i < ctxN ? cyanColor : bgElev2;
+    }
+  }
+  if (promptBlocks) {
+    for (let i = 0; i < 256; i++) {
+      promptBlocks.children[i].style.background = i < promptN ? amberColor : bgElev2;
+    }
+  }
 }
 
 function renderRoster() {
