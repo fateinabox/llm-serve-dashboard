@@ -223,17 +223,27 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 .nav .docked-widget .docked-body .stat-value { font-size: 14px; }
 
 /* Docked roster — sidebar entries, subclass styling (matches main dashboard nav-model rows) */
-.nav .docked-roster { list-style: none; padding: 0; margin: 0; }
+.nav .docked-roster { list-style: none; padding: 0; margin: 0; overflow: hidden; transition: max-height 0.2s ease-out; }
+.nav .docked-roster.collapsed { max-height: 0 !important; padding: 0; }
 .nav .docked-roster li { padding: 0; border-bottom: none; }
-.nav .docked-roster .nav-model { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
+.nav .docked-roster .nav-model { display: flex; align-items: center; gap: 6px; padding: 3px 0 3px 14px; font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
 .nav .docked-roster .nav-model .nm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
 .nav .docked-roster .nav-model.on { color: var(--ink); }
 .nav .docked-roster .nav-model.on .nm-dot { background: var(--ok); box-shadow: 0 0 6px var(--accent-glow); }
-.nav .docked-roster .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav .docked-roster .nav-model .nm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .nav .docked-roster .nav-model .nm-port { margin-left: auto; color: var(--ink-mute); }
 .nav .docked-roster .nm-btn { font-family: var(--mono); font-size: 9px; padding: 1px 5px; cursor: pointer; background: var(--bg-elev); color: var(--ink-dim); border: 1px solid var(--line); border-radius: 3px; }
 .nav .docked-roster .nm-btn:hover { color: var(--ink); border-color: var(--line-hi); }
 .nav .docked-roster .nm-btn:disabled { opacity: 0.5; cursor: default; }
+.nav .docked-title { font-weight: 600; }
+.docked-roster-toggle {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  color: var(--ink-mute);
+  transition: transform 0.15s ease-out;
+}
+.docked-roster-toggle:hover { color: var(--accent); }
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -655,6 +665,37 @@ class WidgetSystem {
     this.renderWidgets();
   }
 
+  static _ROSTER_TOGGLE_KEY = "sidecar-roster-sublist-collapsed";
+  static get _rosterSublistCollapsed() {
+    try { return JSON.parse(localStorage.getItem(this._ROSTER_TOGGLE_KEY)) ?? false; }
+    catch { return false; }
+  }
+  static set _rosterSublistCollapsed(v) {
+    localStorage.setItem(this._ROSTER_TOGGLE_KEY, String(v));
+  }
+
+  static toggleRosterSublist() {
+    this._rosterSublistCollapsed = !this._rosterSublistCollapsed;
+    const list = document.getElementById("roster-sublist");
+    if (!list) return;
+    list.classList.toggle("collapsed", this._rosterSublistCollapsed);
+    // Update chevron in all docked roster headers
+    document.querySelectorAll(".docked-roster-toggle").forEach(btn => {
+      btn.textContent = this._rosterSublistCollapsed ? "▸" : "▾";
+    });
+  }
+
+  static _restoreRosterState() {
+    // Only restore if roster widget is actually present in the docked list
+    const list = document.getElementById("roster-sublist");
+    if (!list) return;
+    // Re-apply persisted state (user's last toggle choice)
+    list.classList.toggle("collapsed", this._rosterSublistCollapsed);
+    document.querySelectorAll(".docked-roster-toggle").forEach(btn => {
+      btn.textContent = this._rosterSublistCollapsed ? "▸" : "▾";
+    });
+  }
+
   static _dockedKey = "";
 
   static updateDocked() {
@@ -674,11 +715,18 @@ class WidgetSystem {
       return;
     }
     
-    const dockedGroup = document.createElement("div");
-    dockedGroup.className = "group";
-    dockedGroup.textContent = "DOCKED";
-    dockedGroup.id = "docked-group";
-    this.navWidgets?.insertBefore(dockedGroup, this.dockedWidgets);
+    // Insert DOCKED group header before docked-widgets (siblings under <aside>)
+    const aside = this.navWidgets?.parentElement;
+    if (!aside) return;
+    let dockedGroup = document.getElementById("docked-group");
+    if (!dockedGroup) {
+      dockedGroup = document.createElement("div");
+      dockedGroup.className = "group";
+      dockedGroup.textContent = "DOCKED";
+      dockedGroup.id = "docked-group";
+      aside.insertBefore(dockedGroup, this.dockedWidgets);
+    }
+    dockedGroup.style.display = "block";
     
     this.dockedWidgets.innerHTML = Array.from(collapsed).map(id => {
       const widget = this.DEFAULT_WIDGETS.find(w => w.id === id);
@@ -712,7 +760,9 @@ class WidgetSystem {
         for (const p of others) {
           rows.push(`<li class="nav-model" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load">LOAD</button></li>`);
         }
-        body = `<div class="docked-body"><ul class="docked-roster">${rows.join("")}</ul></div>`;
+        body = `<div class="docked-body">
+          <ul class="docked-roster" id="roster-sublist">${rows.join("")}</ul>
+        </div>`;
       } else if (id === "gpu" && gpuData) {
         const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
         const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
@@ -737,11 +787,18 @@ class WidgetSystem {
         body = `<div class="docked-body"><div class="stat-sub">${widget.title}</div></div>`;
       }
       
+      let headerHtml = `<span class="docked-title">${widget.title}</span>`;
+      // Roster gets a sublist toggle chevron (stopPropagation prevents widget expand)
+      if (id === "roster") {
+        headerHtml += ` <span class="docked-roster-toggle" onclick="event.stopPropagation();WidgetSystem.toggleRosterSublist()">▾</span>`;
+      }
       return `<li class="docked-widget">
-        <div class="docked-header" onclick="WidgetSystem.toggleCollapse('${id}')">${widget.title} ▴</div>
+        <div class="docked-header" onclick="WidgetSystem.toggleCollapse('${id}')">${headerHtml}</div>
         ${body}
       </li>`;
     }).join("");
+    // Restore roster sublist collapse state (persisted across rebuilds)
+    this._restoreRosterState();
   }
 
   static initDragDrop() {
