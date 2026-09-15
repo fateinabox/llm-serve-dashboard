@@ -11,11 +11,14 @@ Replaces fleet-metrics.py. Provides:
 Loopback-only, stdlib-only, no deps.
 """
 import json
+import sys
 import os
 import re
 import time
+import psutil
 import urllib.request
 import urllib.error
+import urllib.parse
 import http.server
 import socket
 
@@ -332,23 +335,89 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             self._json(404, {"error": f"{path} not found"})
 
     def do_GET(self):
-        if self.path == "/":
+        # Strip query string for route matching
+        path = self.path.split("?")[0]
+        if path == "/":
             self._html(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sidecar.html"))
-        elif self.path == "/alt":
+        elif path == "/alt":
             self._html(os.path.join(os.path.dirname(os.path.abspath(__file__)), "alt.html"))
-        elif self.path == "/api/kv/snapshots":
+        elif path == "/api/kv/snapshots":
             model = loaded_model()
             snaps = kv_list_snapshots(model)
             self._json(200, {"snapshots": snaps, "model": model, "dir": KV_DIR})
-        elif self.path == "/api/models/roster":
+        elif path == "/api/models/roster":
+            model = loaded_model()
             presets = parse_presets()
             others = scan_models_dir()
-            self._json(200, {"presets": presets, "others": others})
-        elif self.path == "/api/gpu":
+            self._json(200, {"presets": presets, "others": others, "model": model})
+        elif path == "/api/gpu":
             self._json(200, detect_gpu())
-        elif self.path == "/health":
+        elif path == "/api/slots":
+            model = loaded_model()
+            if not model:
+                self._json(200, [])
+                return
+            try:
+                d = router_get("/slots", query=f"model={urllib.parse.quote(model)}")
+            except Exception as e:
+                self._json(502, {"error": str(e)})
+                return
+            slots = d if isinstance(d, list) else d.get("slots", [])
+            out = [{
+                "id": s.get("id"),
+                "is_processing": s.get("is_processing", False),
+                "n_prompt_tokens": s.get("n_prompt_tokens", 0),
+                "n_prompt_tokens_processed": s.get("n_prompt_tokens_processed", 0),
+                "n_prompt_tokens_cache": s.get("n_prompt_tokens_cache", 0),
+                "n_prompt_tokens_total": s.get("n_prompt_tokens_total", 0),
+                "decode_tokens_seconds": s.get("decode_tokens_seconds", 0),
+                "prompt_tokens_seconds": s.get("prompt_tokens_seconds", 0),
+            } for s in slots]
+            self._json(200, out)
+        elif path == "/api/log":
+            # Tail the llama-server log via journalctl
+            # Try direct first (if llama is in systemd-journal group), then sudo fallback
+            import subprocess
+            try:
+                # Direct journalctl (works if llama is in systemd-journal group)
+                r = subprocess.run(
+                    ["journalctl", "-u", "llama-server@vulkan", "--no-pager", "-n", "200"],
+                    capture_output=True, text=True, timeout=10
+                )
+                if r.returncode != 0 or not r.stdout.strip():
+                    # Fallback: sudo journalctl
+                    r = subprocess.run(
+                        ["sudo", "-n", "/usr/bin/journalctl", "-u", "llama-server@vulkan", "--no-pager", "-n", "200"],
+                        capture_output=True, text=True, timeout=10
+                    )
+                if r.returncode != 0:
+                    self._json(500, {"error": r.stderr.strip()})
+                    return
+                lines = r.stdout.splitlines()
+                self._json(200, {"lines": lines, "total": len(lines)})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        elif path == "/api/system":
+            try:
+                mem = psutil.virtual_memory()
+                cpu_pct = psutil.cpu_percent(interval=0.1)
+                temps = {}
+                for name, sensor in (psutil.sensors_temperatures() or {}).items():
+                    for t in sensor:
+                        key = t.label or f"{name}/{t.index}"
+                        temps[key] = t.current
+                self._json(200, {
+                    "ram_used_mb": mem.used / (1024 * 1024),
+                    "ram_total_mb": mem.total / (1024 * 1024),
+                    "ram_used_pct": mem.percent,
+                    "cpu_percent": cpu_pct,
+                    "temps": temps,
+                })
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        elif path == "/health":
             self._json(200, {"status": "ok"})
-        elif self.path.startswith("/api/prometheus/query_range"):
+        elif path.startswith("/api/prometheus/query_range"):
             # Proxy Prometheus range queries
             query = self.path[len("/api/prometheus/query_range"):]
             if query.startswith("?"):
@@ -362,7 +431,7 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
                 self._json(200, json.loads(resp.read().decode("utf-8", errors="replace")))
             except Exception as e:
                 self._json(502, {"error": str(e)})
-        elif self.path.startswith("/api/prometheus/query"):
+        elif path.startswith("/api/prometheus/query"):
             # Proxy Prometheus instant queries
             query = self.path[len("/api/prometheus/query"):]
             if query.startswith("?"):
@@ -389,14 +458,15 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
 
         model = loaded_model()
 
-        if self.path == "/api/kv/save":
+        path = self.path.split("?")[0]
+        if path == "/api/kv/save":
             filename = payload.get("filename", time.strftime("%Y%m%d-%H%M%S"))
             result = kv_router_call("save", {"model": model, "filename": filename})
             if "error" not in result:
                 _kv_tag(filename, model)
             self._json(200, result)
 
-        elif self.path == "/api/kv/restore":
+        elif path == "/api/kv/restore":
             filename = payload.get("filename")
             if not filename:
                 snaps = kv_list_snapshots(model)
@@ -407,11 +477,11 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             result = kv_router_call("restore", {"model": model, "filename": filename})
             self._json(200, result)
 
-        elif self.path == "/api/kv/erase":
+        elif path == "/api/kv/erase":
             result = kv_router_call("erase", {"model": model})
             self._json(200, result)
 
-        elif self.path == "/api/kv/swap":
+        elif path == "/api/kv/swap":
             filename = payload.get("filename", time.strftime("%Y%m%d-%H%M%S"))
             saved = kv_router_call("save", {"model": model, "filename": filename})
             if "error" in saved:
@@ -421,12 +491,12 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             erased = kv_router_call("erase", {"model": model})
             self._json(200, {"saved": saved, "erased": erased})
 
-        elif self.path == "/api/kv/prune":
+        elif path == "/api/kv/prune":
             keep = int(payload.get("keep", KV_DEFAULT_KEEP))
             result = kv_prune(keep, model)
             self._json(200, result)
 
-        elif self.path == "/api/models/load":
+        elif path == "/api/models/load":
             model_id = payload.get("model")
             if not model_id:
                 self._json(400, {"error": "model required"})
@@ -434,7 +504,7 @@ class SidecarHandler(http.server.BaseHTTPRequestHandler):
             result = router_post("/v1/models/load", {"model": model_id})
             self._json(200, result)
 
-        elif self.path == "/api/models/unload":
+        elif path == "/api/models/unload":
             model_id = payload.get("model")
             if not model_id:
                 self._json(400, {"error": "model required"})
