@@ -1,9 +1,6 @@
 # Install
 
-From nothing to your own GPUs on screen. Should take about two minutes.
-
-The [README](README.md) is the reference — every environment variable, every design decision,
-every security note. This page is just the path.
+Rust sidecar for the LLM serve dashboard. Single static binary, no runtime, no deps to install.
 
 ---
 
@@ -11,106 +8,56 @@ every security note. This page is just the path.
 
 | | |
 |---|---|
-| **Python 3.8 or newer** | `python3 --version`. Nothing to install — the backend is stdlib only. |
-| **GPU access** | NVIDIA: `nvidia-smi` on your PATH (`nvidia-smi --version`; ships with the driver). AMD: the `amdgpu` kernel driver, which exposes `/sys/class/drm/card*/device/`. `lspci` is optional — it names the cards. |
+| **Rust toolchain** | `cargo --version`. Build once, run the binary forever. |
+| **GPU access** | NVIDIA: `nvidia-smi` on PATH. AMD: `amdgpu` kernel driver + `amdgpu_top` (optional, sysfs fallback). |
+| **Tailscale** (optional) | For remote access over the tailnet with automatic HTTPS. |
 | **A browser** | Any current one. |
 
-There is no `pip install`, no `npm install`, no build step, and no toolchain. If you have
-Python and a working GPU driver (NVIDIA or AMD), you already have everything. AMD needs no
-extra tools: `amdgpu_top`/`radeon_top` are TUIs and the dashboard reads the same data straight
-from sysfs.
-
-> **No GPU?** It still runs — the GPU panel is simply empty and everything else
-> (worker throughput, network, system) works normally. It will not crash and it will not
-> refuse to start.
-
-## 2. Start it
+## 2. Build
 
 ```bash
-python3 fleet-metrics.py
+cargo build --release
 ```
 
-You should see one line:
+Produces `target/release/sidecar` (~6 MB static binary).
 
-```
-fleet-metrics serving on 127.0.0.1:8092/metrics
-```
-
-Open <http://localhost:8092/> — or `xdg-open http://localhost:8092/` on Linux,
-`open http://localhost:8092/` on macOS.
-
-That is the whole install. The backend serves the page *and* the data, so there is no second
-process, no web server to configure, and no CORS to grant. A `CLASSIC | AMD` toggle in the nav
-(or `?view=amd`) switches to a per-card hero layout with an AMD-red theme; classic is the default.
-
-> **Do not open `index.html` by double-clicking it.** A `file://` page cannot read the
-> metrics, deliberately — see the README's note on `Origin: null`. Always go through
-> `http://localhost:8092/`.
-
-### Port 8092 already taken?
+## 3. Run
 
 ```bash
-FLEET_METRICS_PORT=9100 python3 fleet-metrics.py
+./target/release/sidecar
 ```
 
-The page follows automatically; it polls whatever origin it was served from. If the port is
-busy you get one line telling you so, not a stack trace.
-
-## 3. Check it actually worked
-
-Three things, in order. If all three pass, you are done.
+Or with custom config:
 
 ```bash
-# 1. the server is alive
-curl -s http://localhost:8092/health
-
-# 2. it can see your GPUs  (prints a number — 0 is fine if you have no GPU)
-curl -s http://localhost:8092/metrics | python3 -c "import json,sys; print(len(json.load(sys.stdin)['gpus']), 'GPU(s)')"
-
-# 3. it found your model server  (prints the port, or None)
-curl -s http://localhost:8092/metrics | python3 -c "import json,sys; print('worker port:', json.load(sys.stdin).get('worker_port'))"
+LLAMA_ROUTER=8080 SIDECAR_PORT=8092 KV_SNAPSHOT_DIR=/opt/models/kvcache ./target/release/sidecar
 ```
 
-In the browser you should see GPU cards filling in within a couple of seconds — the page
-polls every 2s. Tiles that depend on a model server stay blank until one is running, which
-is expected, not a fault.
+Open <http://127.0.0.1:8092/> in a browser.
 
-## 4. Point it at your model server
-
-The dashboard looks for a llama.cpp or vLLM server on `:8001`, then `:8010`, then `:8123`.
-If yours is elsewhere, say so:
+### Tailscale (remote access)
 
 ```bash
-WORKER_PORT_CANDIDATES=8000,8080 python3 fleet-metrics.py
+# Expose the sidecar over HTTPS on the tailnet (port 8443)
+tailscale serve --bg --https 8443 8092
 ```
 
-`:8001` wins outright if it answers; otherwise the responder with the largest context wins.
-Extra servers on the same box can be shown as their own cards:
+Then open `https://<your-node>.<tailnet>.ts.net:8443/` from any device on your tailnet.
+Cert is auto-issued by Tailscale. No app-side TLS or auth needed.
 
-```bash
-SECONDARY_SERVERS='cpu-a:9093,cpu-b:9095' python3 fleet-metrics.py
-```
-
-All of these can be combined on one line. The full list — model registry, reasoning tap, LAN
-binding, allowed hosts — is in the README.
-
-## 5. Keep it running
-
-For a quick look, `Ctrl-C` when you are done and that is that.
-
-To leave it up, run it as a user service — no root, starts with your session:
+### Systemd user service
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/llm-dashboard.service <<EOF
+cat > ~/.config/systemd/user/llm-sidecar.service <<EOF
 [Unit]
-Description=LLM Serve Dashboard
+Description=LLM Serve Sidecar
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$PWD
-ExecStart=$(command -v python3) $PWD/fleet-metrics.py
+WorkingDirectory=/opt/llm-serve-dashboard
+ExecStart=/opt/llm-serve-dashboard/target/release/sidecar
 Restart=on-failure
 RestartSec=5
 
@@ -119,84 +66,45 @@ WantedBy=default.target
 EOF
 
 systemctl --user daemon-reload
-systemctl --user enable --now llm-dashboard
-systemctl --user status llm-dashboard --no-pager
+systemctl --user enable --now llm-sidecar
 ```
 
-`WorkingDirectory` matters — the backend serves `index.html` from its own directory, so do
-not move the files after writing the unit. To pass options, add them as
-`Environment=FLEET_METRICS_PORT=9100` lines under `[Service]`.
+## 4. Environment variables
 
-Survive logout without an active session:
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `LLAMA_ROUTER` | `8080` | Router port |
+| `SIDECAR_PORT` | `8092` | Sidecar listen port |
+| `KV_SNAPSHOT_DIR` | `/opt/models/kvcache` | KV snapshot storage |
+| `KV_DEFAULT_KEEP` | `3` | Default prune keep count |
+| `MODELS_DIR` | `/opt/models` | Model directory for roster scan |
+
+## 5. Verify
 
 ```bash
-sudo loginctl enable-linger "$USER"
+curl -s http://127.0.0.1:8092/health
+curl -s http://127.0.0.1:8092/api/gpu
+curl -s http://127.0.0.1:8092/api/metrics
 ```
 
-## 6. When something is wrong
+## 6. Routes
 
-**Nothing at `localhost:8092`.** Check the process is up and what it bound to:
-
-```bash
-ss -ltnp | grep 8092
-```
-
-Empty means it is not running or it failed to start — run it in the foreground and read the
-message.
-
-**`address already in use`.** Something else has the port. Move yours with
-`FLEET_METRICS_PORT=9100`, or find the occupant with `ss -ltnp | grep 8092`.
-
-**GPU panel is empty.** NVIDIA: run `nvidia-smi` by hand. If that fails, the driver is the
-problem, not this tool; if it works but the panel is still empty, check the backend's stderr —
-it prints exactly which query failed. AMD: check that
-`/sys/class/drm/card*/device/gpu_busy_percent` exists — if it does not, the `amdgpu` driver is
-not loaded or too old.
-
-**GPU cards show, but no PCIe or throttle detail.** Your driver renamed those fields
-(`clocks_throttle_reasons.*` became `clocks_event_reasons.*` in newer builds). The backend
-notices, drops the optional fields, and keeps the rest of the panel alive rather than losing
-everything. You will see one line on stderr saying so. Nothing else is affected.
-
-**Worker tiles blank / `worker port: None`.** Nothing is answering on the candidate ports.
-Confirm your server is up (`curl -s localhost:8001/v1/models`) and set
-`WORKER_PORT_CANDIDATES` to the right port.
-
-**Throughput reads `0.0 tok/s` with an age like `12s ago`.** Working as intended. Both
-engines only publish rates while generating; a held value is labeled with its age and expires
-after 60 seconds rather than lying about being current.
-
-**Latency tile says vLLM-only.** Also intended. llama.cpp exports no latency histogram, so
-nothing can scrape per-request latency from it — the tile says so instead of inventing a
-number. If you need latency under llama.cpp you need something in the request path; see the
-README's Python-or-Rust section.
-
-**403 from a browser on another machine.** Two separate guards, both deliberate. Bind wider
-*and* name the host you use:
-
-```bash
-FLEET_METRICS_BIND=0.0.0.0 FLEET_METRICS_ALLOWED_HOSTS=box.lan python3 fleet-metrics.py
-```
-
-`/metrics` is unauthenticated and reports GPU tenants, ARP neighbours, and established
-connections. Put your own auth or a tunnel in front of it before exposing it to anything you
-do not control.
-
-## 7. Uninstall
-
-```bash
-systemctl --user disable --now llm-dashboard     # if you made the service
-rm ~/.config/systemd/user/llm-dashboard.service
-systemctl --user daemon-reload
-```
-
-Then delete the directory. Nothing is installed outside it — no packages, no dotfiles, no
-system state, no registry entries. It writes nothing to disk while running.
-
----
-
-*Verified on Python 3.12 against a 4×RTX 3090 box (NVIDIA path: default port, custom port,
-port collision, invalid port values, and a deliberately broken `nvidia-smi` — page still serves,
-GPU list empty, clear message on stderr) and on Python 3.14 against an RX 7900 GRE box
-(AMD path: live util/VRAM/power/temperature/fan/clock/PCIe from sysfs, tenant attributed to
-the card holding the model).*
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/` | GET | Dashboard HTML |
+| `/alt` | GET | Alternate design HTML |
+| `/health` | GET | Liveness check |
+| `/api/gpu` | GET | GPU vendor + metrics |
+| `/api/metrics` | GET | Worker metrics (TPS, ctx, spec) |
+| `/api/system` | GET | RAM, CPU, disk, temps |
+| `/api/slots` | GET | Router slot data |
+| `/api/log` | GET | Journalctl tail (200 lines) |
+| `/api/models/roster` | GET | Presets + scanned models |
+| `/api/kv/snapshots` | GET | KV snapshot list |
+| `/api/kv/save` | POST | Save KV snapshot |
+| `/api/kv/restore` | POST | Restore KV snapshot |
+| `/api/kv/erase` | POST | Erase KV cache |
+| `/api/kv/swap` | POST | Save + erase |
+| `/api/kv/prune` | POST | Prune old snapshots |
+| `/api/models/load` | POST | Load model via router |
+| `/api/models/unload` | POST | Unload model via router |

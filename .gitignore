@@ -5,3 +5,5 @@ __pycache__/
 # keep your real registry / secrets out of the repo
 models-registry.local.json
 .env
+# Rust build artifacts
+target/
