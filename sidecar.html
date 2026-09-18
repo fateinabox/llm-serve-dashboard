@@ -834,7 +834,7 @@ class WidgetSystem {
           rows.push(`<li class="nav-model dim">no model loaded</li>`);
         }
         for (const p of others) {
-          rows.push(`<li class="nav-model dim" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></li>`);
+          rows.push(`<li class="nav-model dim" data-model="${escHtml(p.name)}"><span class="nm-dot"></span><span class="nm-name" title="${escHtml(p.name)}">${escHtml(shortName(p.name))}</span><span style="display:flex;gap:4px"><button class="nm-btn" onclick="openPresetsDialog('${escHtml(p.name)}')" title="Edit preset">⚙</button><button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></span></li>`);
         }
         body = `<div class="docked-body">
           <ul class="docked-roster" id="roster-sublist">${rows.join("")}</ul>
@@ -1535,7 +1535,10 @@ function renderRoster() {
     presetsEl.innerHTML = otherPresets.map(p => `
       <li class="nav-model dim" style="display:flex;justify-content:space-between;padding:8px;margin-top:4px;background:var(--bg-elev-2);border-radius:4px;opacity:.6">
         <span class="nav-model-name">${escHtml(shortName(p.name))}</span>
-        <button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        <span style="display:flex;gap:4px">
+          <button class="nm-btn" onclick="openPresetsDialog('${escHtml(p.name)}')" title="Edit preset">⚙</button>
+          <button class="nm-btn" onclick="loadModel('${escHtml(p.name)}')" title="Load"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+        </span>
       </li>
     `).join("");
   }
@@ -1761,7 +1764,7 @@ function formToIni(form) {
   return parts.join("\n");
 }
 
-async function openPresetsDialog() {
+async function openPresetsDialog(presetName) {
   const panel = document.getElementById("presets-panel");
   const backdrop = document.getElementById("presets-backdrop");
   if (!panel || !backdrop) return;
@@ -1772,13 +1775,13 @@ async function openPresetsDialog() {
     const data = await apiFetch("/api/presets");
     _presetsData = data;
     _presetsForm = parseIniToForm(data.raw || "");
-    _presetsSelected = "*";
+    _presetsSelected = presetName || "*";
     const sel = document.getElementById("presets-select");
     sel.innerHTML = Object.keys(_presetsForm)
       .filter(k => k !== "*")
       .map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`)
       .join("");
-    sel.value = "*";
+    sel.value = _presetsSelected;
     switchPresetView("form");
     document.getElementById("presets-status").textContent = "";
   } catch (e) {
