@@ -354,6 +354,45 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
     <button class="theme-toggle" id="theme-toggle" title="Cycle theme">◐</button>
     <button class="theme-toggle" onclick="WidgetSystem.resetLayout()" title="Reset layout">↺</button>
     <button class="theme-toggle" onclick="WidgetSystem.toggleSettings()" title="Settings">⚙</button>
+    <button class="theme-toggle" onclick="openPresetsDialog()" title="Presets">📋</button>
+  </div>
+
+  <!-- Presets Backdrop -->
+  <div class="settings-backdrop" id="presets-backdrop" onclick="closePresetsDialog()"></div>
+
+  <!-- Presets Panel -->
+  <div class="settings-panel presets-panel" id="presets-panel" style="width:520px;max-height:80vh;overflow-y:auto">
+    <div class="settings-header">
+      <span>Model Presets</span>
+      <button onclick="closePresetsDialog()" title="Close">✕</button>
+    </div>
+    <div class="settings-body" id="presets-body">
+      <div class="setting-row" id="presets-select-row">
+        <label>Preset</label>
+        <select id="presets-select" onchange="onPresetSelectChange()"></select>
+      </div>
+      <div class="setting-row" id="presets-view-toggle">
+        <button class="w-btn" id="presets-view-form" onclick="switchPresetView('form')">Form</button>
+        <button class="w-btn" id="presets-view-raw" onclick="switchPresetView('raw')">Raw INI</button>
+      </div>
+      <div id="presets-form-view" style="display:none">
+        <div id="presets-key-list"></div>
+        <div class="setting-row" style="margin-top:8px">
+          <input type="text" id="presets-new-key" placeholder="key" style="width:40%">
+          <input type="text" id="presets-new-val" placeholder="value" style="width:40%">
+          <button class="w-btn" onclick="addPresetKey()">+ Add</button>
+        </div>
+      </div>
+      <div id="presets-raw-view" style="display:none">
+        <textarea id="presets-raw-text" style="width:100%;height:300px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px;resize:vertical"></textarea>
+      </div>
+      <div class="setting-row" style="margin-top:8px">
+        <button class="w-btn danger" id="presets-delete-btn" onclick="deletePreset()">🗑 Delete preset</button>
+        <button class="w-btn" id="presets-add-btn" onclick="addNewPreset()">+ New preset</button>
+      </div>
+      <div id="presets-status" class="setting-hint" style="margin-top:6px"></div>
+      <button onclick="savePresets()" style="margin-top:8px;padding:6px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;font-weight:600">Save Presets</button>
+    </div>
   </div>
 
   <!-- Settings Backdrop -->
@@ -1682,6 +1721,179 @@ async function unloadModel() {
     WidgetSystem.emit(EVT.MODEL_CHANGE, { model: null });
   } catch (e) {
     console.error("Failed to unload model:", e);
+  }
+}
+
+// === Presets Dialog ===
+let _presetsData = null; // { presets: [...], raw: "..." }
+let _presetsView = "form"; // "form" | "raw"
+let _presetsSelected = ""; // currently selected preset name
+let _presetsForm = {}; // in-memory { "*": {k:v}, "Name": {k:v} } parsed from raw
+
+function parseIniToForm(raw) {
+  const form = {};
+  let current = null;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(";")) continue;
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      current = trimmed.slice(1, -1);
+      form[current] = form[current] || {};
+      continue;
+    }
+    if (current && trimmed.includes("=")) {
+      const eq = trimmed.indexOf("=");
+      form[current][trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+    }
+  }
+  return form;
+}
+
+function formToIni(form) {
+  const parts = [];
+  for (const [section, kv] of Object.entries(form)) {
+    parts.push(`[${section}]`);
+    for (const [k, v] of Object.entries(kv)) {
+      parts.push(`${k} = ${v}`);
+    }
+    parts.push("");
+  }
+  return parts.join("\n");
+}
+
+async function openPresetsDialog() {
+  const panel = document.getElementById("presets-panel");
+  const backdrop = document.getElementById("presets-backdrop");
+  if (!panel || !backdrop) return;
+  backdrop.classList.add("open");
+  panel.classList.add("open");
+  document.getElementById("presets-status").textContent = "Loading…";
+  try {
+    const data = await apiFetch("/api/presets");
+    _presetsData = data;
+    _presetsForm = parseIniToForm(data.raw || "");
+    _presetsSelected = "*";
+    const sel = document.getElementById("presets-select");
+    sel.innerHTML = Object.keys(_presetsForm)
+      .filter(k => k !== "*")
+      .map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`)
+      .join("");
+    sel.value = "*";
+    switchPresetView("form");
+    document.getElementById("presets-status").textContent = "";
+  } catch (e) {
+    document.getElementById("presets-status").textContent = `Error: ${e.message}`;
+  }
+}
+
+function closePresetsDialog() {
+  document.getElementById("presets-panel")?.classList.remove("open");
+  document.getElementById("presets-backdrop")?.classList.remove("open");
+}
+
+function switchPresetView(mode) {
+  _presetsView = mode;
+  document.getElementById("presets-form-view").style.display = mode === "form" ? "block" : "none";
+  document.getElementById("presets-raw-view").style.display = mode === "raw" ? "block" : "none";
+  document.getElementById("presets-view-form").style.background = mode === "form" ? "var(--accent)" : "none";
+  document.getElementById("presets-view-form").style.color = mode === "form" ? "white" : "";
+  document.getElementById("presets-view-raw").style.background = mode === "raw" ? "var(--accent)" : "none";
+  document.getElementById("presets-view-raw").style.color = mode === "raw" ? "white" : "";
+  if (mode === "form") renderPresetForm();
+  if (mode === "raw") {
+    document.getElementById("presets-raw-text").value = formToIni(_presetsForm);
+  }
+}
+
+function onPresetSelectChange() {
+  _presetsSelected = document.getElementById("presets-select").value || "*";
+  renderPresetForm();
+}
+
+function renderPresetForm() {
+  const kv = _presetsForm[_presetsSelected] || {};
+  const list = document.getElementById("presets-key-list");
+  list.innerHTML = Object.entries(kv).map(([k, v]) => `
+    <div class="setting-row" style="gap:6px">
+      <span style="min-width:120px;font-family:var(--mono);font-size:12px">${escHtml(k)}</span>
+      <input type="text" value="${escHtml(v)}" onchange="onPresetValChange('${escHtml(k)}', this.value)" style="flex:1">
+      <button class="w-btn" onclick="removePresetKey('${escHtml(k)}')" title="Remove">✕</button>
+    </div>`).join("");
+}
+
+function onPresetValChange(key, val) {
+  if (!_presetsForm[_presetsSelected]) _presetsForm[_presetsSelected] = {};
+  _presetsForm[_presetsSelected][key] = val;
+}
+
+function addPresetKey() {
+  const key = document.getElementById("presets-new-key").value.trim();
+  const val = document.getElementById("presets-new-val").value.trim();
+  if (!key) return;
+  if (!_presetsForm[_presetsSelected]) _presetsForm[_presetsSelected] = {};
+  _presetsForm[_presetsSelected][key] = val;
+  document.getElementById("presets-new-key").value = "";
+  document.getElementById("presets-new-val").value = "";
+  renderPresetForm();
+}
+
+function removePresetKey(key) {
+  if (_presetsForm[_presetsSelected]) delete _presetsForm[_presetsSelected][key];
+  renderPresetForm();
+}
+
+function addNewPreset() {
+  const name = prompt("Preset name:");
+  if (!name || name.trim().isEmpty()) return;
+  const trimmed = name.trim();
+  if (_presetsForm[trimmed]) { alert("Preset already exists"); return; }
+  _presetsForm[trimmed] = {};
+  const sel = document.getElementById("presets-select");
+  sel.innerHTML = Object.keys(_presetsForm)
+    .filter(k => k !== "*")
+    .map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`)
+    .join("");
+  sel.value = trimmed;
+  _presetsSelected = trimmed;
+  renderPresetForm();
+}
+
+function deletePreset() {
+  if (!_presetsSelected || _presetsSelected === "*") return;
+  if (!confirm(`Delete preset "${_presetsSelected}"?`)) return;
+  delete _presetsForm[_presetsSelected];
+  const sel = document.getElementById("presets-select");
+  sel.innerHTML = Object.keys(_presetsForm)
+    .filter(k => k !== "*")
+    .map(k => `<option value="${escHtml(k)}">${escHtml(k)}</option>`)
+    .join("");
+  _presetsSelected = "*";
+  sel.value = "*";
+  renderPresetForm();
+}
+
+async function savePresets() {
+  const status = document.getElementById("presets-status");
+  status.textContent = "Saving…";
+  try {
+    if (_presetsView === "raw") {
+      _presetsForm = parseIniToForm(document.getElementById("presets-raw-text").value);
+    }
+    const raw = formToIni(_presetsForm);
+    await apiFetch("/api/presets", {
+      method: "PUT",
+      headers: { "Content-Type": "text/plain" },
+      body: raw
+    });
+    status.textContent = "Saved ✓";
+    // Refresh in-memory data
+    const data = await apiFetch("/api/presets");
+    _presetsData = data;
+    _presetsForm = parseIniToForm(data.raw || "");
+    // Trigger roster refresh
+    WidgetSystem.emit(EVT.MODEL_CHANGE, { model: currentData.model });
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
   }
 }
 

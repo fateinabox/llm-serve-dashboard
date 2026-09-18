@@ -15,10 +15,11 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use axum::body::Body;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
@@ -1092,6 +1093,52 @@ async fn post_models_unload(State(state): State<AppState>, Json(payload): Json<V
     }
 }
 
+// ── Presets ─────────────────────────────────────────────────────────────────
+
+async fn get_presets(State(state): State<AppState>) -> Json<Value> {
+    let raw = fs::read_to_string(&state.cfg.presets_file)
+        .unwrap_or_default();
+    Json(json!({
+        "presets": parse_presets(&state.cfg),
+        "raw": raw,
+    }))
+}
+
+async fn put_presets(
+    State(state): State<AppState>,
+    body: axum::body::Body,
+) -> Response {
+    let bytes = match axum::body::to_bytes(body, 1_048_576).await {
+        Ok(b) => b,
+        Err(_) => {
+            return (StatusCode::PAYLOAD_TOO_LARGE, Json(json!({"error": "body too large"}))).into_response();
+        }
+    };
+    let text = match String::from_utf8(bytes.to_vec()) {
+        Ok(t) => t,
+        Err(_) => {
+            return (StatusCode::BAD_REQUEST, Json(json!({"error": "invalid UTF-8"}))).into_response();
+        }
+    };
+    if text.trim().is_empty() {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "empty or invalid INI content"}))).into_response();
+    }
+    // Atomic write: tmp file + rename
+    let tmp = format!("{}.tmp", state.cfg.presets_file);
+    if let Err(e) = fs::write(&tmp, &text) {
+        let _ = fs::remove_file(&tmp);
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response();
+    }
+    if let Err(e) = fs::rename(&tmp, &state.cfg.presets_file) {
+        let _ = fs::remove_file(&tmp);
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response();
+    }
+    Json(json!({
+        "ok": true,
+        "presets": parse_presets(&state.cfg),
+    })).into_response()
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -1124,6 +1171,8 @@ async fn main() {
         .route("/api/kv/prune", post(post_kv_prune))
         .route("/api/models/load", post(post_models_load))
         .route("/api/models/unload", post(post_models_unload))
+        .route("/api/presets", get(get_presets))
+        .route("/api/presets", put(put_presets))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
