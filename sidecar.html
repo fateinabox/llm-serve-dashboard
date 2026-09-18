@@ -178,7 +178,13 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 }
 .ctx-blk.filled { background: var(--cyan); }
 .prompt-blk.filled { background: var(--amber); }
-.ctx-grid-title { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); margin-bottom: calc(8px * var(--widget-scale, 1)); text-transform: uppercase; letter-spacing: .5px; }
+.ctx-grid-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: calc(8px * var(--widget-scale, 1)); }
+.ctx-grid-title { font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.ctx-grid-pct { font-family: var(--mono); font-size: calc(22px * var(--widget-scale, 1)); font-weight: 700; color: var(--cyan); }
+.ctx-grid-pct.amber { color: var(--amber); }
+.ctx-grid-pct.amber.active { animation: prefill-pulse 1.2s ease-in-out infinite; }
+@keyframes prefill-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+.ctx-grid-sub { font-family: var(--mono); font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-dim); margin-top: calc(8px * var(--widget-scale, 1)); }
 
 /* Sparklines */
 .sparkline-row { display: flex; gap: calc(16px * var(--widget-scale, 1)); align-items: center; padding: calc(8px * var(--widget-scale, 1)) 0; border-bottom: 1px solid var(--line); }
@@ -221,10 +227,19 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
 .log-content { font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink-dim); white-space: pre-wrap; word-break: break-all; }
 
 /* GPU widget */
-.gpu-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(16px * var(--widget-scale, 1)); margin-bottom: calc(16px * var(--widget-scale, 1)); }
-.gpu-stat { text-align: center; padding: calc(12px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 8px; }
-.gpu-stat-value { font-family: var(--mono); font-size: calc(20px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); margin-bottom: calc(4px * var(--widget-scale, 1)); }
-.gpu-stat-label { font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
+.gpu-hero { display: flex; align-items: center; gap: calc(16px * var(--widget-scale, 1)); margin-bottom: calc(16px * var(--widget-scale, 1)); }
+.gpu-hero-util { font-family: var(--mono); font-size: calc(34px * var(--widget-scale, 1)); font-weight: 700; color: var(--ink); line-height: 1; flex-shrink: 0; }
+.gpu-hero-spark { flex: 1; min-width: 0; height: calc(34px * var(--widget-scale, 1)); background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; }
+.gpu-bars { display: flex; flex-direction: column; gap: calc(10px * var(--widget-scale, 1)); }
+.gpu-bar-row { display: flex; align-items: center; gap: calc(10px * var(--widget-scale, 1)); }
+.gpu-bar-label { width: calc(44px * var(--widget-scale, 1)); font-size: calc(11px * var(--widget-scale, 1)); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; flex-shrink: 0; }
+.gpu-bar-track { flex: 1; min-width: 0; height: calc(8px * var(--widget-scale, 1)); background: var(--bg-elev); border-radius: 4px; overflow: hidden; }
+.gpu-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width .3s ease-out; }
+.gpu-bar-fill.cyan { background: var(--cyan); }
+.gpu-bar-fill.amber { background: var(--amber); }
+.gpu-bar-val { width: calc(96px * var(--widget-scale, 1)); font-family: var(--mono); font-size: calc(12px * var(--widget-scale, 1)); color: var(--ink); text-align: right; flex-shrink: 0; }
+.gpu-chips { display: flex; gap: calc(6px * var(--widget-scale, 1)); margin-top: calc(12px * var(--widget-scale, 1)); }
+.gpu-chip { font-family: var(--mono); font-size: calc(11px * var(--widget-scale, 1)); padding: calc(3px * var(--widget-scale, 1)) calc(6px * var(--widget-scale, 1)); background: var(--bg-elev); border-radius: 4px; color: var(--ink-dim); }
 
 /* KV cache panel */
 .kv-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -272,7 +287,6 @@ main { flex: 1; padding: 20px; overflow-y: auto; }
   .nav { width: 100%; border-right: none; border-bottom: 1px solid var(--line); padding: 12px; }
   .widget-grid { grid-template-columns: 1fr; }
   .log-drawer { left: 0; right: 0; }
-  .gpu-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* Animations */
@@ -787,17 +801,17 @@ class WidgetSystem {
           <ul class="docked-roster" id="roster-sublist">${rows.join("")}</ul>
         </div>`;
       } else if (id === "gpu" && gpuData) {
-        const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
-        const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
-        const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
+        const util = gpuData.gfx_percent || 0;
         const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
-        body = `<div class="docked-body" style="text-align:center">
-          ${layeredRingsSVG([
-            { pct: tempPct, color: tempColor, label: temp },
-            { pct: gpuData.gfx_percent || 0, color: "#a78bfa", label: "" },
-            { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)", label: "",
-              overPct: Math.max(((gpuData.power_w || 0) / 300) * 100 - 100, 0), overColor: "var(--red)" }
-          ], 60)}
+        const vramTotal = gpuData.vram_total_mib || 0;
+        const vramUsed = gpuData.vram_used_mib || 0;
+        const vramLabel = vramTotal > 0 ? `${(vramUsed / 1024).toFixed(1)}/${(vramTotal / 1024).toFixed(1)}G` : "—";
+        const power = (gpuData.power_w || 0).toFixed(0) + "W";
+        body = `<div class="docked-body">
+          <div class="stat-row"><span class="stat-label">Util</span><span class="stat-value" style="font-size:14px">${util.toFixed(0)}</span><span class="stat-unit">%</span></div>
+          <div class="stat-row"><span class="stat-label">Temp</span><span class="stat-value" style="font-size:14px">${temp}</span></div>
+          <div class="stat-row"><span class="stat-label">VRAM</span><span class="stat-value" style="font-size:14px">${vramLabel}</span></div>
+          <div class="stat-row"><span class="stat-label">PWR</span><span class="stat-value" style="font-size:14px">${power}</span></div>
         </div>`;
       } else if (id === "system" && systemData) {
         const ramPct = systemData.ram_used_pct || 0;
@@ -1099,6 +1113,13 @@ function shortName(name) {
   return base.length > 30 ? base.substring(0, 27) + "..." : base;
 }
 
+function fmtTokens(n) {
+  if (n == null || n < 0) return "0";
+  if (n < 1000) return String(n);
+  if (n < 1e6) return (n / 1e3).toFixed(n < 1e4 ? 1 : 0) + "k";
+  return (n / 1e6).toFixed(1) + "M";
+}
+
 function apiFetch(path, options = {}) {
   const remoteUrl = WidgetSystem.config.remoteUrl;
   const apiBase = WidgetSystem.config.apiBase || "/api";
@@ -1149,30 +1170,6 @@ function sparklineSVG(data, color = "var(--cyan)") {
   return `<svg class="sparkline-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
     <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
-}
-
-function layeredRingsSVG(layers, size = 100) {
-  const cx = size / 2;
-  const cy = size / 2;
-  const radii = [size * 0.25, size * 0.4, size * 0.48];
-  
-  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-  
-  layers.forEach((layer, i) => {
-    const r = radii[i] || (size * 0.25 + i * size * 0.15);
-    const circumference = 2 * Math.PI * r;
-    const offset = circumference - (layer.pct / 100) * circumference;
-    
-    svg += `<circle class="ring-${i}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${layer.color || "var(--ink-mute)"}" stroke-width="4" 
-            stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
-    
-    if (layer.label && i === 0) {
-      svg += `<text class="ring-label" x="${cx}" y="${cy + 5}" text-anchor="middle" fill="${layer.color || "var(--ink)"}" font-size="12" font-family="monospace">${layer.label}</text>`;
-    }
-  });
-  
-  svg += "</svg>";
-  return svg;
 }
 
 // Pre-built widget skeletons (built once at script load)
@@ -1261,30 +1258,24 @@ const _ctxSparseOrder = (() => {
   return order;
 })();
 
-// Pre-built GPU rings skeleton (3 circles, 0% fill)
-const _gpuRingsSkeleton = (() => {
-  const size = 100, cx = 50, cy = 50;
-  const radii = [size * 0.25, size * 0.4, size * 0.48]; // 25, 40, 48
-  let svg = `<svg class="gpu-rings-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
-  radii.forEach((r, i) => {
-    const c = 2 * Math.PI * r;
-    svg += `<circle class="ring-${i}" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink-mute)" stroke-width="4" stroke-dasharray="${c}" stroke-dashoffset="${c}" transform="rotate(-90 ${cx} ${cy})"/>`;
-  });
-  svg += `<text class="ring-label" x="${cx}" y="${cy + 5}" text-anchor="middle" fill="var(--ink)" font-size="12" font-family="monospace">—</text>`;
-  svg += "</svg>";
-  return svg;
-})();
-
 // Context widget ghost (same structure as renderContext first-render HTML)
 const _contextGhost = `
   <div class="ctx-grid-container">
     <div class="ctx-grid-col">
-      <div class="ctx-grid-title">Context</div>
+      <div class="ctx-grid-head">
+        <span class="ctx-grid-title">Context</span>
+        <span class="ctx-grid-pct" id="ctx-pct">—</span>
+      </div>
       <div class="blk-grid-wrap" id="ctx-blocks">${_ctxBlockCells}</div>
+      <div class="ctx-grid-sub" id="ctx-tokens">—</div>
     </div>
     <div class="ctx-grid-col">
-      <div class="ctx-grid-title">Prompt</div>
+      <div class="ctx-grid-head">
+        <span class="ctx-grid-title">Prefill</span>
+        <span class="ctx-grid-pct amber" id="prefill-pct">—</span>
+      </div>
       <div class="blk-grid-wrap" id="prompt-blocks">${_promptBlockCells}</div>
+      <div class="ctx-grid-sub">per-request</div>
     </div>
   </div>`;
 
@@ -1347,6 +1338,9 @@ function _fillSparse(blocks, n) {
 // animate the fill between poll values for a smooth 0→100% visual.
 let _promptAnim = null;
 let _promptFrom = 0, _promptTo = 0, _promptAnimStart = 0;
+// Context grid interpolation: use same timing as prompt for smooth visual.
+let _ctxAnim = null;
+let _ctxFrom = 0, _ctxTo = 0, _ctxAnimStart = 0;
 const _PROMPT_LERP_MS = 1500;
 
 function _promptAnimate() {
@@ -1363,40 +1357,96 @@ function _promptAnimate() {
   }
 }
 
+function _ctxAnimate() {
+  const elapsed = performance.now() - _ctxAnimStart;
+  const t = Math.min(elapsed / _PROMPT_LERP_MS, 1);
+  const eased = 1 - Math.pow(1 - t, 2);
+  const val = _ctxFrom + (_ctxTo - _ctxFrom) * eased;
+  const el = document.getElementById("widget-context");
+  if (el) _fillSparse(el.querySelector("#ctx-blocks"), Math.round((val / 100) * 256));
+  if (t < 1) {
+    _ctxAnim = requestAnimationFrame(_ctxAnimate);
+  } else {
+    _ctxAnim = null;
+  }
+}
+
 function renderContext() {
   const el = document.getElementById("widget-context");
   if (!el) return;
 
   // Context grid: true context fill from the worker's n_tokens_max / n_ctx.
   const ctxFill = currentData.ctx_fill_pct || 0;
-  // Prompt grid: raw prompt-processing percentage (0-100%) from router /slots.
+  // Prefill grid: per-request prefill progress (0-100%) from router /slots.
   const promptIngest = currentData.prompt_ingest_pct || 0;
+  const ctxTokens = currentData.ctx_used_tokens || 0;
+  const nCtx = currentData.n_ctx || 0;
 
   const ctxN = Math.round((ctxFill / 100) * 256);
   const promptN = Math.round((promptIngest / 100) * 256);
-  const key = `${ctxN}|${promptN}`;
-  if (_last.context === key) return;
-  _last.context = key;
+  const tokenLabel = nCtx > 0 ? `${fmtTokens(ctxTokens)} / ${fmtTokens(nCtx)} tokens` : "—";
 
-  // First render: build from pre-built skeletons
+  // Always update the % labels (they have higher precision than the grid)
+  const ctxPct = el.querySelector("#ctx-pct");
+  if (ctxPct) ctxPct.textContent = ctxFill.toFixed(1) + "%";
+  const prefillPct = el.querySelector("#prefill-pct");
+  if (prefillPct) prefillPct.textContent = promptIngest.toFixed(1) + "%";
+  const ctxTokensEl = el.querySelector("#ctx-tokens");
+  if (ctxTokensEl) ctxTokensEl.textContent = tokenLabel;
+
+  // Prefill % pulses while an active prefill is in progress
+  if (prefillPct) prefillPct.classList.toggle("active", promptIngest > 0);
+
+  const key = `${ctxN}|${promptN}|${tokenLabel}`;
+  if (_last.context === key) {
+    // Grid cells unchanged - still need to drive animations in case targets moved
+  } else {
+    _last.context = key;
+  }
+
+  // First render: build the differentiated dual-grid
   if (!el.querySelector(".blk-grid-wrap")) {
     el.innerHTML = `
       <div class="ctx-grid-container">
         <div class="ctx-grid-col">
-          <div class="ctx-grid-title">Context</div>
+          <div class="ctx-grid-head">
+            <span class="ctx-grid-title">Context</span>
+            <span class="ctx-grid-pct" id="ctx-pct">—</span>
+          </div>
           <div class="blk-grid-wrap" id="ctx-blocks">${_ctxBlockCells}</div>
+          <div class="ctx-grid-sub" id="ctx-tokens">—</div>
         </div>
         <div class="ctx-grid-col">
-          <div class="ctx-grid-title">Prompt</div>
+          <div class="ctx-grid-head">
+            <span class="ctx-grid-title">Prefill</span>
+            <span class="ctx-grid-pct amber" id="prefill-pct">—</span>
+          </div>
           <div class="blk-grid-wrap" id="prompt-blocks">${_promptBlockCells}</div>
+          <div class="ctx-grid-sub">per-request</div>
         </div>
       </div>
     `;
   }
 
-  _fillSparse(el.querySelector("#ctx-blocks"), ctxN);
+  // Context grid interpolation: smooth fill similar to prefill
+  if (ctxFill !== _ctxTo) {
+    // Mid‑animation handling – compute current interpolated value as new start
+    let cur = _ctxTo;
+    if (_ctxAnim) {
+      const t = Math.min((performance.now() - _ctxAnimStart) / _PROMPT_LERP_MS, 1);
+      const eased = 1 - Math.pow(1 - t, 2);
+      cur = _ctxFrom + (_ctxTo - _ctxFrom) * eased;
+    }
+    _ctxFrom = cur;
+    _ctxTo = ctxFill;
+    _ctxAnimStart = performance.now();
+    if (_ctxAnim) cancelAnimationFrame(_ctxAnim);
+    _ctxAnim = requestAnimationFrame(_ctxAnimate);
+  } else {
+    _fillSparse(el.querySelector("#ctx-blocks"), ctxN);
+  }
 
-  // Prompt grid: interpolate to the new target for smooth fill
+  // Prefill grid: interpolate to the new target for smooth fill
   if (promptIngest !== _promptTo) {
     // If mid-animation, use current interpolated position as new start
     let current = _promptTo;
@@ -1452,92 +1502,97 @@ function renderRoster() {
   }
 }
 
+// Soft cap for the power bar (no TDP in the data; 350 W covers 3090 / 7900 GRE class).
+const _GPU_POWER_CAP = 350;
+
 function renderGpu() {
   const el = document.getElementById("widget-gpu");
   if (!el) return;
-  
+
   if (!gpuData) {
     el.innerHTML = `<div class="stat-sub">No GPU data</div>`;
     return;
   }
-  
+
+  const util = gpuData.gfx_percent || 0;
   const maxTemp = gpuData.vendor === "nvidia" ? 90 : 100;
   const tempPct = gpuData.temp_c != null ? Math.min((gpuData.temp_c / maxTemp) * 100, 100) : 0;
   const tempColor = tempPct > 80 ? "var(--amber)" : tempPct > 60 ? "var(--accent)" : "var(--cyan)";
   const temp = gpuData.temp_c != null ? gpuData.temp_c.toFixed(0) + "°C" : "—";
-  const key = `${tempPct.toFixed(0)}|${(gpuData.gfx_percent || 0).toFixed(0)}|${(gpuData.power_w || 0).toFixed(0)}`;
+  const power = gpuData.power_w || 0;
+  const powerPct = Math.min((power / _GPU_POWER_CAP) * 100, 100);
+  const vramTotal = gpuData.vram_total_mib || 0;
+  const vramUsed = gpuData.vram_used_mib || 0;
+  const vramPct = vramTotal > 0 ? Math.min((vramUsed / vramTotal) * 100, 100) : 0;
+  const vramLabel = vramTotal > 0 ? `${(vramUsed / 1024).toFixed(1)} / ${(vramTotal / 1024).toFixed(1)} G` : "—";
+
+  const key = `${util.toFixed(0)}|${tempPct.toFixed(0)}|${power.toFixed(0)}|${vramUsed.toFixed(0)}|${vramTotal.toFixed(0)}`;
   if (_last.gpu === key) return;
   _last.gpu = key;
-  
-  // First render: build from pre-built skeleton
-  if (!el.querySelector(".gpu-rings-svg")) {
+
+  // First render: build the hero + resource-bars layout
+  if (!el.querySelector(".gpu-hero")) {
     el.innerHTML = `
-      <div class="gpu-stats">
-        <div class="gpu-stat">
-          <div class="gpu-stat-value">—</div>
-          <div class="gpu-stat-label">Temperature</div>
+      <div class="gpu-hero">
+        <div class="gpu-hero-util" id="gpu-util-num">—</div>
+        <div class="gpu-hero-spark" id="gpu-util-spark"></div>
+      </div>
+      <div class="gpu-bars">
+        <div class="gpu-bar-row">
+          <span class="gpu-bar-label">VRAM</span>
+          <div class="gpu-bar-track"><div class="gpu-bar-fill cyan" id="gpu-vram-fill" style="width:0%"></div></div>
+          <span class="gpu-bar-val" id="gpu-vram-val">—</span>
         </div>
-        <div class="gpu-stat">
-          <div class="gpu-stat-value">—</div>
-          <div class="gpu-stat-label">Power</div>
+        <div class="gpu-bar-row">
+          <span class="gpu-bar-label">TEMP</span>
+          <div class="gpu-bar-track"><div class="gpu-bar-fill" id="gpu-temp-fill" style="width:0%"></div></div>
+          <span class="gpu-bar-val" id="gpu-temp-val">—</span>
         </div>
-        <div class="gpu-stat">
-          <div class="gpu-stat-value">—</div>
-          <div class="gpu-stat-label">Utilization</div>
+        <div class="gpu-bar-row">
+          <span class="gpu-bar-label">PWR</span>
+          <div class="gpu-bar-track"><div class="gpu-bar-fill amber" id="gpu-pwr-fill" style="width:0%"></div></div>
+          <span class="gpu-bar-val" id="gpu-pwr-val">—</span>
         </div>
       </div>
-      <div class="sparkline-row">
-        <span class="sparkline-label">Util</span>
-        <div class="sparkline-container" id="gpu-util-spark"></div>
-        <span class="sparkline-value" id="gpu-util-val">—</span>
-      </div>
-      <div id="gpu-rings">${_gpuRingsSkeleton}</div>
+      <div class="gpu-chips" id="gpu-chips"></div>
     `;
     clearWidgetLoading("gpu");
   }
 
-  // Update stat values in place
-  const vals = el.querySelectorAll(".gpu-stat-value");
-  if (vals.length === 3) {
-    vals[0].textContent = temp;
-    vals[1].textContent = (gpuData.power_w || 0).toFixed(1) + "W";
-    vals[2].textContent = (gpuData.gfx_percent || 0) + "%";
-  }
-
-  // Update sparkline
+  // Hero util number + sparkline
+  const utilNum = el.querySelector("#gpu-util-num");
+  if (utilNum) utilNum.textContent = util.toFixed(0) + "%";
   const sparkEl = el.querySelector("#gpu-util-spark");
-  const sparkVal = el.querySelector("#gpu-util-val");
   if (sparkEl && _gpuUtilHistory.length >= 2) {
-    sparkEl.innerHTML = sparklineSVG(_gpuUtilHistory, "#a78bfa");
-    if (sparkVal) sparkVal.textContent = (gpuData.gfx_percent || 0) + "%";
+    sparkEl.innerHTML = sparklineSVG(_gpuUtilHistory, "var(--violet)");
   }
 
-  // Update rings in place
-  // Scale rings SVG to match widget scale
-  const ringsSvg = el.querySelector(".gpu-rings-svg");
-  if (ringsSvg) {
-    const scale = parseFloat(getComputedStyle(el.closest(".widget") || el).getPropertyValue("--widget-scale")) || 1;
-    const sz = Math.round(100 * scale);
-    ringsSvg.setAttribute("width", sz);
-    ringsSvg.setAttribute("height", sz);
+  // Resource bars
+  const setBar = (fillId, valId, pct, text) => {
+    const f = el.querySelector(fillId);
+    const v = el.querySelector(valId);
+    if (f) f.style.width = pct.toFixed(1) + "%";
+    if (v) v.textContent = text;
+  };
+  setBar("#gpu-vram-fill", "#gpu-vram-val", vramPct, vramLabel);
+  setBar("#gpu-pwr-fill", "#gpu-pwr-val", powerPct, power.toFixed(0) + " W");
+  const tempFill = el.querySelector("#gpu-temp-fill");
+  if (tempFill) {
+    tempFill.style.width = tempPct.toFixed(1) + "%";
+    tempFill.style.background = tempColor;
   }
-  
-  const rings = el.querySelectorAll(".gpu-rings-svg circle");
-  const ringData = [
-    { pct: tempPct, color: tempColor },
-    { pct: gpuData.gfx_percent || 0, color: "#a78bfa" },
-    { pct: Math.min(((gpuData.power_w || 0) / 300) * 100, 100), color: "var(--amber)" }
-  ];
-  rings.forEach((ring, i) => {
-    const c = parseFloat(ring.getAttribute("stroke-dasharray"));
-    const offset = c - (ringData[i].pct / 100) * c;
-    ring.setAttribute("stroke-dashoffset", offset);
-    ring.setAttribute("stroke", ringData[i].color);
-  });
-  const label = el.querySelector(".gpu-rings-svg .ring-label");
-  if (label) {
-    label.textContent = temp;
-    label.setAttribute("fill", tempColor);
+  const tempVal = el.querySelector("#gpu-temp-val");
+  if (tempVal) tempVal.textContent = temp;
+
+  // Chips: fan + clock (AMD only); omit the row when neither is present.
+  // Clock is omitted when the GPU is idle (AMD reports 0 MHz at idle).
+  const chips = [];
+  if (gpuData.fan_rpm != null) chips.push(`${gpuData.fan_rpm} rpm`);
+  if (gpuData.freq_mhz > 0) chips.push(`${Math.round(gpuData.freq_mhz)} MHz`);
+  const chipsEl = el.querySelector("#gpu-chips");
+  if (chipsEl) {
+    chipsEl.innerHTML = chips.length ? chips.map(c => `<span class="gpu-chip">${c}</span>`).join("") : "";
+    chipsEl.style.display = chips.length ? "" : "none";
   }
 }
 
@@ -1683,6 +1738,7 @@ async function fetchMetrics() {
 
     if (metricsData && metricsData.port) {
       currentData = {
+        ...currentData,
         decode_rate: metricsData.decode_tps || 0,
         decode_rate_age_s: metricsData.decode_tps_age_s,
         prompt_rate: metricsData.prompt_tps || 0,
@@ -1694,7 +1750,6 @@ async function fetchMetrics() {
         prompt_ingest_pct: metricsData.prompt_ingest_pct || 0,
         requests_processing: metricsData.requests_processing || 0,
         requests_waiting: metricsData.requests_waiting || 0,
-        ...currentData
       };
       console.log("Updated currentData:", currentData);
     }
@@ -1792,12 +1847,10 @@ async function poll() {
     
     // Update main status
     document.getElementById("main-status").textContent = "LIVE";
-    
-    // Only create widgets on first poll; subsequent polls just update content
-    if (!window._widgetsInitialized) {
-      WidgetSystem.renderWidgets();
-      window._widgetsInitialized = true;
-      // Safety: clear any remaining spinners after first poll (data may not have arrived)
+
+    // Safety: clear any remaining spinners after first poll (data may not have arrived)
+    if (!window._pollLoadingCleared) {
+      window._pollLoadingCleared = true;
       ["activity", "context", "roster", "gpu", "system"].forEach(id => clearWidgetLoading(id));
     }
 
@@ -1847,6 +1900,11 @@ console.log("Sidecar v2 initializing...");
 console.log("Config:", WidgetSystem.config);
 
 WidgetSystem.init();
+// Build the widget grid once, before the first poll, so renderers have a
+// target on poll #1 (renderContext bails on a missing element and would
+// otherwise leave the ghost in place until a later poll).
+WidgetSystem.renderWidgets();
+window._widgetsInitialized = true;
 poll().then(() => {
   console.log("First poll complete. Data:", currentData, gpuData, systemData);
 }).catch(e => console.error("Initial poll failed:", e));

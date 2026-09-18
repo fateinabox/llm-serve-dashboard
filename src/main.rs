@@ -17,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
@@ -125,7 +125,12 @@ async fn router_get(state: &AppState, path: &str, query: &str) -> Result<Value, 
         .map_err(|e| e.to_string())
 }
 
-async fn router_post(state: &AppState, path: &str, body: &Value, query: &str) -> Value {
+async fn router_post(
+    state: &AppState,
+    path: &str,
+    body: &Value,
+    query: &str,
+) -> (StatusCode, Value) {
     let url = router_url(&state.cfg, path, query);
     let resp = match state
         .client
@@ -137,14 +142,14 @@ async fn router_post(state: &AppState, path: &str, body: &Value, query: &str) ->
         .await
     {
         Ok(r) => r,
-        Err(e) => return json!({"error": e.to_string()}),
+        Err(e) => return (StatusCode::BAD_GATEWAY, json!({"error": e.to_string()})),
     };
     let status = resp.status();
     let text = match resp.text().await {
         Ok(t) => t,
-        Err(e) => return json!({"error": e.to_string()}),
+        Err(e) => return (status, json!({"error": e.to_string()})),
     };
-    match serde_json::from_str::<Value>(&text) {
+    let value = match serde_json::from_str::<Value>(&text) {
         Ok(v) => v,
         Err(_) => {
             if status.is_success() {
@@ -153,7 +158,8 @@ async fn router_post(state: &AppState, path: &str, body: &Value, query: &str) ->
                 json!({"error": text})
             }
         }
-    }
+    };
+    (status, value)
 }
 
 async fn loaded_model(state: &AppState) -> Option<String> {
@@ -421,6 +427,7 @@ fn kv_tag(cfg: &Config, filename: &str, model: &str) {
 fn kv_list_snapshots(cfg: &Config, model: Option<&str>) -> Vec<Value> {
     let reg = kv_read_registry(cfg);
     let mut snaps: Vec<Value> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     if let Ok(entries) = fs::read_dir(&cfg.kv_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -430,6 +437,7 @@ fn kv_list_snapshots(cfg: &Config, model: Option<&str>) -> Vec<Value> {
             if !entry.path().is_file() {
                 continue;
             }
+            seen.insert(name.clone());
             let entry_val = reg.get(&name).cloned().unwrap_or(json!({}));
             let snap_model = entry_val.get("model").and_then(|v| v.as_str());
             if let Some(m) = model {
@@ -454,6 +462,24 @@ fn kv_list_snapshots(cfg: &Config, model: Option<&str>) -> Vec<Value> {
                         .map(|d| d.as_secs_f64())
                 })
                 .unwrap_or(0.0);
+            snaps.push(json!({"filename": name, "model": snap_model, "size": size, "mtime": mtime}));
+        }
+    }
+    // Registry entries with no file on disk (stale) are skipped; files present
+    // but untagged are listed with model null.
+    if let Some(obj) = reg.as_object() {
+        for (name, entry_val) in obj {
+            if seen.contains(name) {
+                continue;
+            }
+            let snap_model = entry_val.get("model").and_then(|v| v.as_str());
+            if let Some(m) = model {
+                if snap_model != Some(m) {
+                    continue;
+                }
+            }
+            let size = entry_val.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+            let mtime = entry_val.get("mtime").and_then(|v| v.as_f64()).unwrap_or(0.0);
             snaps.push(json!({"filename": name, "model": snap_model, "size": size, "mtime": mtime}));
         }
     }
@@ -490,8 +516,18 @@ fn kv_prune(cfg: &Config, keep: u32, model: Option<&str>) -> Value {
     json!({"deleted": deleted, "kept": keep})
 }
 
-async fn kv_router_call(state: &AppState, action: &str, payload: &Value) -> Value {
-    router_post(state, &format!("/slots/0?action={}", action), payload, "").await
+async fn kv_router_call(
+    state: &AppState,
+    action: &str,
+    payload: &Value,
+) -> (StatusCode, Value) {
+    router_post(
+        state,
+        &format!("/slots/0?action={}", action),
+        payload,
+        "",
+    )
+    .await
 }
 
 // ── Model roster ───────────────────────────────────────────────────────────
@@ -827,19 +863,15 @@ fn log_tail() -> Value {
 fn serve_html(path: &str) -> axum::response::Response {
     match fs::read(path) {
         Ok(body) => {
-            let mtime = fs::metadata(path)
-                .and_then(|m| m.modified())
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let size = body.len() as u64;
-            let token = format!("{}-{}", mtime, size);
             let html = String::from_utf8_lossy(&body).to_string();
-            let html = html.replacen("<head>", &format!("<head><!--cb:{}-->", token), 1);
-            (StatusCode::OK, html).into_response()
+            let mut resp = Response::new(body.into());
+            resp.headers_mut().insert(
+                axum::http::header::CONTENT_TYPE,
+                "text/html; charset=utf-8".parse().unwrap(),
+            );
+            resp
         }
-        Err(_) => Json(json!({"error": format!("{} not found", path)})).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Json(json!({"error": format!("{} not found", path)}))).into_response(),
     }
 }
 
@@ -969,21 +1001,21 @@ async fn get_kv_snapshots(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-async fn post_kv_save(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
+async fn post_kv_save(State(state): State<AppState>, Json(payload): Json<Value>) -> Response {
     let model = loaded_model(&state).await;
     let filename = payload
         .get("filename")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| chrono_now());
-    let result = kv_router_call(&state, "save", &json!({"model": model, "filename": filename})).await;
-    if result.get("error").is_none() {
+    let (status, result) = kv_router_call(&state, "save", &json!({"model": model, "filename": filename})).await;
+    if status.is_success() && result.get("error").is_none() {
         kv_tag(&state.cfg, &filename, model.as_deref().unwrap_or("unknown"));
     }
-    Json(result)
+    (status, Json(result)).into_response()
 }
 
-async fn post_kv_restore(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
+async fn post_kv_restore(State(state): State<AppState>, Json(payload): Json<Value>) -> Response {
     let model = loaded_model(&state).await;
     let filename = payload
         .get("filename")
@@ -995,33 +1027,38 @@ async fn post_kv_restore(State(state): State<AppState>, Json(payload): Json<Valu
         });
     match filename {
         Some(f) => {
-            let result = kv_router_call(&state, "restore", &json!({"model": model, "filename": f})).await;
-            Json(result)
+            let (status, result) = kv_router_call(&state, "restore", &json!({"model": model, "filename": f})).await;
+            (status, Json(result)).into_response()
         }
-        None => Json(json!({"error": "no snapshots for loaded model"})),
+        None => (StatusCode::NOT_FOUND, Json(json!({"error": "no snapshots for loaded model"}))).into_response(),
     }
 }
 
-async fn post_kv_erase(State(state): State<AppState>) -> Json<Value> {
+async fn post_kv_erase(State(state): State<AppState>) -> Response {
     let model = loaded_model(&state).await;
-    let result = kv_router_call(&state, "erase", &json!({"model": model})).await;
-    Json(result)
+    let (status, result) = kv_router_call(&state, "erase", &json!({"model": model})).await;
+    (status, Json(result)).into_response()
 }
 
-async fn post_kv_swap(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
+async fn post_kv_swap(State(state): State<AppState>, Json(payload): Json<Value>) -> Response {
     let model = loaded_model(&state).await;
     let filename = payload
         .get("filename")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| chrono_now());
-    let saved = kv_router_call(&state, "save", &json!({"model": model, "filename": filename})).await;
-    if saved.get("error").is_some() {
-        return Json(saved);
+    let (saved_status, saved) = kv_router_call(&state, "save", &json!({"model": model, "filename": filename})).await;
+    if !saved_status.is_success() || saved.get("error").is_some() {
+        return (saved_status, Json(saved)).into_response();
     }
     kv_tag(&state.cfg, &filename, model.as_deref().unwrap_or("unknown"));
-    let erased = kv_router_call(&state, "erase", &json!({"model": model})).await;
-    Json(json!({"saved": saved, "erased": erased}))
+    let (erased_status, erased) = kv_router_call(&state, "erase", &json!({"model": model})).await;
+    let status = if erased_status.is_success() && erased.get("error").is_none() {
+        StatusCode::OK
+    } else {
+        erased_status
+    };
+    (status, Json(json!({"saved": saved, "erased": erased}))).into_response()
 }
 
 async fn post_kv_prune(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
@@ -1033,25 +1070,25 @@ async fn post_kv_prune(State(state): State<AppState>, Json(payload): Json<Value>
     Json(kv_prune(&state.cfg, keep, model.as_deref()))
 }
 
-async fn post_models_load(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
+async fn post_models_load(State(state): State<AppState>, Json(payload): Json<Value>) -> Response {
     let model_id = payload.get("model").and_then(|v| v.as_str());
     match model_id {
         Some(id) => {
-            let result = router_post(&state, "/v1/models/load", &json!({"model": id}), "").await;
-            Json(result)
+            let (status, result) = router_post(&state, "/v1/models/load", &json!({"model": id}), "").await;
+            (status, Json(result)).into_response()
         }
-        None => Json(json!({"error": "model required"})),
+        None => (StatusCode::BAD_REQUEST, Json(json!({"error": "model required"}))).into_response(),
     }
 }
 
-async fn post_models_unload(State(state): State<AppState>, Json(payload): Json<Value>) -> Json<Value> {
+async fn post_models_unload(State(state): State<AppState>, Json(payload): Json<Value>) -> Response {
     let model_id = payload.get("model").and_then(|v| v.as_str());
     match model_id {
         Some(id) => {
-            let result = router_post(&state, "/v1/models/unload", &json!({"model": id}), "").await;
-            Json(result)
+            let (status, result) = router_post(&state, "/v1/models/unload", &json!({"model": id}), "").await;
+            (status, Json(result)).into_response()
         }
-        None => Json(json!({"error": "model required"})),
+        None => (StatusCode::BAD_REQUEST, Json(json!({"error": "model required"}))).into_response(),
     }
 }
 
